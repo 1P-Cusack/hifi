@@ -16,6 +16,7 @@
 #include <StencilMaskPass.h>
 #include <GeometryCache.h>
 #include <PerfStat.h>
+#include <ShapeFactory.h>
 
 #include <render-utils/simple_vert.h>
 #include <render-utils/simple_frag.h>
@@ -84,6 +85,23 @@ bool RenderableShapeEntityItem::isTransparent() {
     } else {
         return getLocalRenderAlpha() < 1.0f || EntityItem::isTransparent();
     }
+}
+
+void RenderableShapeEntityItem::computeShapeInfo(ShapeInfo& info) {
+
+	if (_collisionShapeType == ShapeType::SHAPE_TYPE_NONE) {
+		if (_shape == entity::Shape::NUM_SHAPES)
+		{
+			EntityItem::computeShapeInfo(info);
+
+			//--EARLY EXIT--( allow default handling to process )
+			return;
+		}
+
+		_collisionShapeType = ShapeFactory::computeShapeType(getShape(), getDimensions());
+	}
+
+	return EntityItem::computeShapeInfo(info);
 }
 
 void RenderableShapeEntityItem::render(RenderArgs* args) {

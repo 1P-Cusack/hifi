@@ -247,7 +247,7 @@ void deleteStaticMeshArray(btTriangleIndexVertexArray* dataArray) {
     delete dataArray;
 }
 
-ShapeType validateShapeType(ShapeType type, const glm::vec3 &halfExtents, btCollisionShape *outCollisionShape = nullptr)
+ShapeType validateShapeType(ShapeType type, const glm::vec3 &halfExtents, btCollisionShape **outCollisionShape = NULL)
 {
 	if ((type == SHAPE_TYPE_SPHERE) || (type == SHAPE_TYPE_ELLIPSOID))
 	{
@@ -259,7 +259,7 @@ ShapeType validateShapeType(ShapeType type, const glm::vec3 &halfExtents, btColl
 			&& fabsf(radius - halfExtents.z) / radius < MIN_RELATIVE_SPHERICAL_ERROR) {
 			// close enough to true sphere
 			if (outCollisionShape) {
-				outCollisionShape = new btSphereShape(radius);
+				(*outCollisionShape) = new btSphereShape(radius);
 			}
 
 			return SHAPE_TYPE_SPHERE;
@@ -271,7 +271,7 @@ ShapeType validateShapeType(ShapeType type, const glm::vec3 &halfExtents, btColl
 				points.push_back(bulletToGLM(_unitSphereDirections[i]) * halfExtents);
 			}
 			if (outCollisionShape) {
-				outCollisionShape = createConvexHull(points);
+				(*outCollisionShape) = createConvexHull(points);
 			}
 
 			return SHAPE_TYPE_ELLIPSOID;
@@ -280,23 +280,23 @@ ShapeType validateShapeType(ShapeType type, const glm::vec3 &halfExtents, btColl
 	else if ((type == SHAPE_TYPE_CYLINDER_X) || (type == SHAPE_TYPE_CYLINDER_Y) || (type == SHAPE_TYPE_CYLINDER_Z))
 	{
 		const btVector3 btHalfExtents(halfExtents.x, halfExtents.y, halfExtents.z);
-		if ((halfExtents.y > halfExtents.x) && (halfExtents.y > halfExtents.z)) {
+		if ((halfExtents.y >= halfExtents.x) && (halfExtents.y >= halfExtents.z)) {
 			if (outCollisionShape) {
-				outCollisionShape = new btCylinderShape(btHalfExtents);
+				(*outCollisionShape) = new btCylinderShape(btHalfExtents);
 			}
 
 			return SHAPE_TYPE_CYLINDER_Y;
 		}
-		else if (halfExtents.x > halfExtents.z) {
+		else if (halfExtents.x >= halfExtents.z) {
 			if (outCollisionShape) {
-				outCollisionShape = new btCylinderShapeX(btHalfExtents);
+				(*outCollisionShape) = new btCylinderShapeX(btHalfExtents);
 			}
 
 			return SHAPE_TYPE_CYLINDER_X;
 		}
 		else if (halfExtents.z > halfExtents.x) {
 			if (outCollisionShape) {
-				outCollisionShape = new btCylinderShapeZ(btHalfExtents);
+				(*outCollisionShape) = new btCylinderShapeZ(btHalfExtents);
 			}
 
 			return SHAPE_TYPE_CYLINDER_Z;
@@ -399,7 +399,7 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
             //    shape = createConvexHull(points);
             //}
 
-			validateShapeType(SHAPE_TYPE_ELLIPSOID, halfExtents, shape);
+			validateShapeType(SHAPE_TYPE_ELLIPSOID, halfExtents, &shape);
         }
         break;
         case SHAPE_TYPE_CAPSULE_Y: {
@@ -442,7 +442,7 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
 			//{
 			//	//TODO_CUSACK: Shunt to ELLIPSOID handling
 			//}
-			validateShapeType(SHAPE_TYPE_CYLINDER_Y, halfExtents, shape);
+			validateShapeType(SHAPE_TYPE_CYLINDER_Y, halfExtents, &shape);
 		}
 		break;
         case SHAPE_TYPE_COMPOUND:
