@@ -58,11 +58,12 @@ ShapeEntityItem::Pointer ShapeEntityItem::baseFactory(const EntityItemID& entity
 }
 
 EntityItemPointer ShapeEntityItem::factory(const EntityItemID& entityID, const EntityItemProperties& properties) {
-	auto result = baseFactory(entityID, properties);
+    auto result = baseFactory(entityID, properties);
 
-	qCDebug(entities) << "Creating ShapeEntityItem( " << result->_name << " ): " << result.get() << " ID: " << result->_id;
+    //TODO_CUSACK: Remove this before final PN
+    qCDebug(entities) << "Creating ShapeEntityItem( " << result->_name << " ): " << result.get() << " ID: " << result->_id;
 
-	return result;
+    return result;
 }
 
 EntityItemPointer ShapeEntityItem::boxFactory(const EntityItemID& entityID, const EntityItemProperties& properties) {
@@ -95,11 +96,11 @@ void ShapeEntityItem::setShape(const entity::Shape& shape) {
     switch (_shape) {
         case entity::Shape::Cube:
             _type = EntityTypes::Box;
-			_collisionShapeType = ShapeType::SHAPE_TYPE_BOX;
+            _collisionShapeType = ShapeType::SHAPE_TYPE_BOX;
             break;
         case entity::Shape::Sphere:
             _type = EntityTypes::Sphere;
-			_collisionShapeType = ShapeType::SHAPE_TYPE_ELLIPSOID;
+            _collisionShapeType = ShapeType::SHAPE_TYPE_ELLIPSOID;
             break;
         default:
             _type = EntityTypes::Shape;
@@ -174,26 +175,26 @@ void ShapeEntityItem::appendSubclassData(OctreePacketData* packetData, EncodeBit
 // This value specifes how the shape should be treated by physics calculations.  
 // For now, all polys will act as spheres
 ShapeType ShapeEntityItem::getShapeType() const {
-	//TODO_CUSACK: This needs to be retrieved from properties if possible
-	//		    or stored within a new member and set during parsing of
-	//			the properties like setShape via set/get/readEntityProperties.
-	//          Perhaps if the _actual_ collisionShapeType is needed (the version that's in use
-	//			based on analysis of the shape's halfExtents when BulletLibrary collision shape was
-	//			created as opposed to the desired ShapeType is it possible to retrieve that information)?
-	//if (_shape == entity::Shape::Cylinder) {
-	//	return SHAPE_TYPE_CYLINDER_Y;
-	//}
+    //TODO_CUSACK: This needs to be retrieved from properties if possible
+    //		    or stored within a new member and set during parsing of
+    //			the properties like setShape via set/get/readEntityProperties.
+    //          Perhaps if the _actual_ collisionShapeType is needed (the version that's in use
+    //			based on analysis of the shape's halfExtents when BulletLibrary collision shape was
+    //          created as opposed to the desired ShapeType is it possible to retrieve that information)?
+    //if (_shape == entity::Shape::Cylinder) {
+    //  return SHAPE_TYPE_CYLINDER_Y;
+    //}
 
-	//// Original functionality:  Everything not a cube, is treated like an ellipsoid/sphere
-	//return (_shape == entity::Shape::Cube) ? SHAPE_TYPE_BOX : SHAPE_TYPE_ELLIPSOID;
+    //// Original functionality:  Everything not a cube, is treated like an ellipsoid/sphere
+    //return (_shape == entity::Shape::Cube) ? SHAPE_TYPE_BOX : SHAPE_TYPE_ELLIPSOID;
 
-	//if (_collisionShapeType == ShapeType::SHAPE_TYPE_NONE)
-	//{
-	//	//--EARLY EXIT--( Maintain previous behavior of treating invalid as Ellipsoid/Sphere )
-	//	return SHAPE_TYPE_ELLIPSOID;
-	//}
+    //if (_collisionShapeType == ShapeType::SHAPE_TYPE_NONE)
+    //{
+    //  //--EARLY EXIT--( Maintain previous behavior of treating invalid as Ellipsoid/Sphere )
+    //  return SHAPE_TYPE_ELLIPSOID;
+    //}
 
-	return _collisionShapeType;
+    return _collisionShapeType;
 }
 
 void ShapeEntityItem::setColor(const rgbColor& value) {

@@ -26,6 +26,7 @@ void ShapeInfo::clear() {
 }
 
 void ShapeInfo::setParams(ShapeType type, const glm::vec3& halfExtents, QString url) {
+    //TODO_CUSACK: Does this need additional cases and handling added?
     _type = type;
     _halfExtents = halfExtents;
     switch(type) {
@@ -46,6 +47,8 @@ void ShapeInfo::setParams(ShapeType type, const glm::vec3& halfExtents, QString 
 }
 
 void ShapeInfo::setBox(const glm::vec3& halfExtents) {
+    //TODO_CUSACK:  Should this pointlist clearance added in case
+    //              this is a re-purposed instance?
     _url = "";
     _type = SHAPE_TYPE_BOX;
     _halfExtents = halfExtents;
@@ -53,6 +56,8 @@ void ShapeInfo::setBox(const glm::vec3& halfExtents) {
 }
 
 void ShapeInfo::setSphere(float radius) {
+    //TODO_CUSACK:  Should this pointlist clearance added in case
+    //              this is a re-purposed instance?
     _url = "";
     _type = SHAPE_TYPE_SPHERE;
     _halfExtents = glm::vec3(radius, radius, radius);
@@ -60,12 +65,17 @@ void ShapeInfo::setSphere(float radius) {
 }
 
 void ShapeInfo::setPointCollection(const ShapeInfo::PointCollection& pointCollection) {
+    //TODO_CUSACK:  Should this have protection against inadvertant clearance and type
+    // resetting?   If for some reason this was called and point list was and is emtpy
+    //              would we still wish to clear out everything?
     _pointCollection = pointCollection;
     _type = (_pointCollection.size() > 0) ? SHAPE_TYPE_COMPOUND : SHAPE_TYPE_NONE;
     _doubleHashKey.clear();
 }
 
 void ShapeInfo::setCapsuleY(float radius, float halfHeight) {
+    //TODO_CUSACK:  Should this pointlist clearance added in case
+    //              this is a re-purposed instance?
     _url = "";
     _type = SHAPE_TYPE_CAPSULE_Y;
     _halfExtents = glm::vec3(radius, halfHeight, radius);
@@ -105,6 +115,7 @@ int ShapeInfo::getLargestSubshapePointCount() const {
 }
 
 float ShapeInfo::computeVolume() const {
+    //TODO_CUSACK: Add support for other ShapeTypes.
     const float DEFAULT_VOLUME = 1.0f;
     float volume = DEFAULT_VOLUME;
     switch(_type) {
@@ -138,6 +149,7 @@ float ShapeInfo::computeVolume() const {
 }
 
 bool ShapeInfo::contains(const glm::vec3& point) const {
+    //TODO_CUSACK:  Add support for other ShapeTypes like Ellipsoid/Compound.
     switch(_type) {
         case SHAPE_TYPE_SPHERE:
             return glm::length(point) <= _halfExtents.x;
