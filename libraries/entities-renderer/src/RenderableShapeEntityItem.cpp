@@ -122,17 +122,56 @@ void RenderableShapeEntityItem::computeShapeInfo(ShapeInfo& info) {
 
         }
         break;
+        // gons, ones, & angles built via GeometryCache::extrudePolygon
         case entity::Shape::Triangle:
         case entity::Shape::Hexagon:
         case entity::Shape::Octagon:
         case entity::Shape::Circle:
+        case entity::Shape::Cone:{
+            //TODO WL21389: SHAPE_TYPE_SIMPLE_HULL and pointCollection (later)
+            _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+        }
+        break;
+        // hedrons built via GeometryCache::setUpFlatShapes
         case entity::Shape::Tetrahedron:
         case entity::Shape::Octahedron:
         case entity::Shape::Dodecahedron:
-        case entity::Shape::Icosahedron:
-        case entity::Shape::Cone: {
+        case entity::Shape::Icosahedron: {
             //TODO WL21389: SHAPE_TYPE_SIMPLE_HULL and pointCollection (later)
-            _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+            auto geometryCache = DependencyManager::get<GeometryCache>();
+            const GeometryCache::ShapeData * shapeData = geometryCache->getShapeData(MAPPING[_shape]);
+            if (!shapeData){
+                //--EARLY EXIT--( data isn't ready for some reason... )
+                break;
+            }
+            const gpu::BufferView & shapeVerts = shapeData->_positionView;
+            const gpu::BufferView & shapeNorms = shapeData->_normalView;
+            assert(shapeVerts._size == shapeNorms._size);
+            ShapeInfo::PointList points;
+            //const size_t numItems = shapeVerts._size - (shapeVerts._size / shapeVerts._stride);
+            //TODO WL21389:  The difference between getNum and getNumElements is that one returns a
+            //               BufferView::Index and the other BufferView::Size...?
+            const gpu::BufferView::Size numItems = shapeVerts.getNumElements();
+            const glm::vec3 halfExtents = entityDimensions * 0.5f;
+            debugDump();
+            qCDebug(entities) << "------------------ Begin Vert Info( ComputeShapeInfo ) -----------------------------";
+            qCDebug(entities) << " name:" << _name << ": has " << numItems << " vert info pairs.";
+            points.reserve( numItems );
+            for (gpu::BufferView::Index i = 0; i < (gpu::BufferView::Index)numItems; ++i) {
+                const geometry::Vec &curVert = shapeVerts.get<geometry::Vec>(i);
+                const geometry::Vec &curNorm = shapeNorms.get<geometry::Vec>(i);
+                qCDebug(entities) << "    --------------------";
+                qCDebug(entities) << "         Vert( " << i << " ): " << debugTreeVector(curVert);
+                qCDebug(entities) << "         Norm( " << i << " ): " << debugTreeVector(curNorm);
+                points.push_back(curNorm * halfExtents);
+                qCDebug(entities) << "         Point( " << i << " ): " << debugTreeVector( (curNorm * halfExtents) );
+            }
+            qCDebug(entities) << "-------------------- End Vert Info( ComputeShapeInfo ) -----------------------------";
+            ShapeInfo::PointCollection pointCollection;
+            pointCollection.push_back(points);
+            info.setPointCollection(pointCollection);
+
+            _collisionShapeType = SHAPE_TYPE_SIMPLE_HULL;
         }
         break;
         case entity::Shape::Torus:
