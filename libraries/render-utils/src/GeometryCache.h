@@ -335,15 +335,19 @@ public:
 
     using VShape = std::array<ShapeData, NUM_SHAPES>;
 
-    VShape _shapes;
+    const ShapeData * getShapeData(Shape shape) const;
 
 private:
+
     GeometryCache();
     virtual ~GeometryCache();
     void buildShapes();
 
     typedef QPair<int, int> IntPair;
     typedef QPair<unsigned int, unsigned int> VerticesIndices;
+    
+    
+    VShape _shapes;
 
     gpu::PipelinePointer _standardDrawPipeline;
     gpu::PipelinePointer _standardDrawPipelineNoBlend;

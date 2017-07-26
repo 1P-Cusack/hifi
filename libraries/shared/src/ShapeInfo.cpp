@@ -75,9 +75,7 @@ void ShapeInfo::setSphere(float radius) {
 }
 
 void ShapeInfo::setPointCollection(const ShapeInfo::PointCollection& pointCollection) {
-    //TODO WL21389: May need to skip resetting type here.
     _pointCollection = pointCollection;
-    _type = (_pointCollection.size() > 0) ? SHAPE_TYPE_COMPOUND : SHAPE_TYPE_NONE;
     _doubleHashKey.clear();
 }
 

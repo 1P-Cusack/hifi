@@ -428,6 +428,14 @@ void GeometryCache::buildShapes() {
  
 }
 
+const GeometryCache::ShapeData * GeometryCache::getShapeData(const Shape shape) const {
+    if (((int)shape < 0) || ((int)shape >= _shapes.size())){
+        return NULL;
+    }
+
+    return &_shapes[shape];
+}
+
 gpu::Stream::FormatPointer& getSolidStreamFormat() {
     if (!SOLID_STREAM_FORMAT) {
         SOLID_STREAM_FORMAT = std::make_shared<gpu::Stream::Format>(); // 1 for everyone
