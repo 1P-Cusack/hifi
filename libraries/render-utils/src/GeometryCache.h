@@ -335,6 +335,8 @@ public:
 
     using VShape = std::array<ShapeData, NUM_SHAPES>;
 
+    /// returns ShapeData associated with the specified shape,
+    /// otherwise nullptr in the event of an error.
     const ShapeData * getShapeData(Shape shape) const;
 
 private:
