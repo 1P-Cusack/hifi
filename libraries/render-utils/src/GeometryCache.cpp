@@ -430,7 +430,7 @@ void GeometryCache::buildShapes() {
 
 const GeometryCache::ShapeData * GeometryCache::getShapeData(const Shape shape) const {
     if (((int)shape < 0) || ((int)shape >= _shapes.size())){
-        return NULL;
+        return nullptr;
     }
 
     return &_shapes[shape];
