@@ -155,6 +155,10 @@ void RenderableShapeEntityItem::computeShapeInfo(ShapeInfo& info) {
             }
         }
         break;
+        case entity::Shape::Circle:{
+            _collisionShapeType = SHAPE_TYPE_CIRCLE;
+        }
+        break;
         case entity::Shape::Cylinder: {
             _collisionShapeType = SHAPE_TYPE_CYLINDER_Y;
             // TODO WL21389: determine if rotation is axis-aligned
@@ -170,9 +174,6 @@ void RenderableShapeEntityItem::computeShapeInfo(ShapeInfo& info) {
         case entity::Shape::Triangle:
         case entity::Shape::Hexagon:
         case entity::Shape::Octagon:
-        case entity::Shape::Circle:  //TODO WL21389: Circles behaves a bit odd for collision
-                                     // landing toward the center sometimes results in the avatar 
-                                     // sliding to the side (byproduct of flat conical?)
         case entity::Shape::Cone:{
             ShapeInfo::PointList points;
             computeSimpleHullPointListForShape(this, points);
@@ -214,7 +215,7 @@ void RenderableShapeEntityItem::computeShapeInfo(ShapeInfo& info) {
     EntityItem::computeShapeInfo(info);
 }
 
-// This value specifes how the shape should be treated by physics calculations.
+// This value specifies how the shape should be treated by physics calculations.
 ShapeType RenderableShapeEntityItem::getShapeType() const {
     return _collisionShapeType;
 }
