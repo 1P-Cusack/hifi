@@ -45,6 +45,10 @@ void ShapeInfo::setParams(ShapeType type, const glm::vec3& halfExtents, QString 
                 _halfExtents = glm::vec3(radius);
             }
             break;
+        case SHAPE_TYPE_CIRCLE: {
+            _halfExtents = glm::vec3(_halfExtents.x, MIN_HALF_EXTENT, _halfExtents.z);
+        }
+        break;
         case SHAPE_TYPE_COMPOUND:
         case SHAPE_TYPE_STATIC_MESH:
             _url = QUrl(url);
