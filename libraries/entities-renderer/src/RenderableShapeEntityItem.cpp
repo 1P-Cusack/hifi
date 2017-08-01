@@ -134,7 +134,13 @@ void RenderableShapeEntityItem::computeShapeInfo(ShapeInfo& info) {
     const glm::vec3 entityDimensions = getDimensions();
 
     switch (_shape){
-        case entity::Shape::Quad:
+        case entity::Shape::Quad: {
+            // Not in GeometryCache::buildShapes, unsupported.
+            _collisionShapeType = SHAPE_TYPE_ELLIPSOID;
+            //TODO WL21389: Add a SHAPE_TYPE_QUAD ShapeType and treat 
+            // as a special box (later if desired support)
+        }
+        break;
         case entity::Shape::Cube: {
             _collisionShapeType = SHAPE_TYPE_BOX;
         }
