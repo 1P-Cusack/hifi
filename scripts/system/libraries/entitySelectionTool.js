@@ -1579,20 +1579,29 @@ SelectionDisplay = (function() {
 
     // FUNCTION: SET SPACE MODE
     that.setSpaceMode = function(newSpaceMode) {
+        print("======> SetSpaceMode called. ========");
         if (spaceMode != newSpaceMode) {
+            print("    Updating SpaceMode From: " + spaceMode + " To: " + newSpaceMode);
             spaceMode = newSpaceMode;
             that.updateHandles();
+        } else {
+            print("    Can't update SpaceMode. CurrentMode: " + spaceMode + " DesiredMode: " + newSpaceMode);
         }
+        print("====== SetSpaceMode called. <========");
     };
 
     // FUNCTION: TOGGLE SPACE MODE
     that.toggleSpaceMode = function() {
+        print("========> ToggleSpaceMode called. =========");
         if (spaceMode == SPACE_WORLD && SelectionManager.selections.length > 1) {
             print("Local space editing is not available with multiple selections");
             return;
         }
+        print( "PreToggle: " + spaceMode);
         spaceMode = spaceMode == SPACE_LOCAL ? SPACE_WORLD : SPACE_LOCAL;
+        print( "PostToggle: " + spaceMode);
         that.updateHandles();
+        print("======== ToggleSpaceMode called. <=========");
     };
 
     // FUNCTION: UNSELECT ALL
@@ -1601,6 +1610,9 @@ SelectionDisplay = (function() {
 
     // FUNCTION: UPDATE HANDLES
     that.updateHandles = function() {
+        print( "======> Update Handles =======" );
+        print( "    Selections Count: " + SelectionManager.selections.length );
+        print( "    SpaceMode: " + spaceMode );
         if (SelectionManager.selections.length === 0) {
             that.setOverlaysVisible(false);
             return;
@@ -2329,6 +2341,8 @@ SelectionDisplay = (function() {
             },
             rotation: Quat.fromPitchYawRollDegrees(90, 0, 0),
         });
+
+        print( "====== Update Handles <=======" );
 
     };
 
@@ -3547,15 +3561,22 @@ SelectionDisplay = (function() {
 
     // FUNCTION: UPDATE ROTATION DEGREES OVERLAY
     function updateRotationDegreesOverlay(angleFromZero, handleRotation, centerPosition) {
+        print( "---> updateRotationDegreesOverlay ---" );
+        print("    AngleFromZero: " + angleFromZero );
+        print("    HandleRotation - X: " + handleRotation.x + " Y: " + handleRotation.y + " Z: " + handleRotation.z );
+        print("    CenterPos - " + centerPosition.x + " Y: " + centerPosition.y + " Z: " + centerPosition.z );
         var angle = angleFromZero * (Math.PI / 180);
         var position = {
             x: Math.cos(angle) * outerRadius * ROTATION_DISPLAY_DISTANCE_MULTIPLIER,
             y: Math.sin(angle) * outerRadius * ROTATION_DISPLAY_DISTANCE_MULTIPLIER,
             z: 0,
         };
+        print("    Angle: " + angle );
+        print("    InitialPos: " + position.x + ", " + position.y + ", " + position.z);
         position = Vec3.multiplyQbyV(handleRotation, position);
         position = Vec3.sum(centerPosition, position);
-        Overlays.editOverlay(rotationDegreesDisplay, {
+        print("    TranslatedPos: " + position.x + ", " + position.y + ", " + position.z);
+        var overlayProps = {
             position: position,
             dimensions: {
                 x: innerRadius * ROTATION_DISPLAY_SIZE_X_MULTIPLIER,
@@ -3563,7 +3584,12 @@ SelectionDisplay = (function() {
             },
             lineHeight: innerRadius * ROTATION_DISPLAY_LINE_HEIGHT_MULTIPLIER,
             text: normalizeDegrees(angleFromZero) + "°",
-        });
+        };
+        print("    OverlayDim - X: " + overlayProps.dimensions.x + " Y: " + overlayProps.dimensions.y + " Z: " + overlayProps.dimensions.z );
+        print("    OverlayLineHeight: " + overlayProps.lineHeight );
+        print("    OverlayText: " + overlayProps.text );
+        Overlays.editOverlay(rotationDegreesDisplay, overlayProps);
+        print( "<--- updateRotationDegreesOverlay ---" );
     }
 
     // YAW GRABBER TOOL DEFINITION
@@ -3571,6 +3597,7 @@ SelectionDisplay = (function() {
     addGrabberTool(yawHandle, {
         mode: "ROTATE_YAW",
         onBegin: function(event) {
+            print("================== HANDLE_ROLL(Beg) -> =======================");
             SelectionManager.saveProperties();
             initialPosition = SelectionManager.worldPosition;
 
@@ -3612,8 +3639,10 @@ SelectionDisplay = (function() {
             });
 
             updateRotationDegreesOverlay(0, yawHandleRotation, yawCenter);
+            print("================== HANDLE_YAW(Beg) <- =======================");
         },
         onEnd: function(event, reason) {
+            print("================== HANDLE_YAW(End) -> =======================");
             Overlays.editOverlay(rotateOverlayInner, {
                 visible: false
             });
@@ -3628,8 +3657,10 @@ SelectionDisplay = (function() {
             });
 
             pushCommandForSelections();
+            print("================== HANDLE_YAW(End) <- =======================");
         },
         onMove: function(event) {
+            print("================== HANDLE_YAW(Mve) -> =======================");
             var pickRay = generalComputePickRay(event.x, event.y);
             Overlays.editOverlay(selectionBox, {
                 visible: false
@@ -3647,6 +3678,7 @@ SelectionDisplay = (function() {
                 var centerToIntersect = Vec3.subtract(result.intersection, center);
                 // Note: orientedAngle which wants normalized centerToZero and centerToIntersect
                 //             handles that internally, so it's to pass unnormalized vectors here.
+                print("    RotNormal - X: " + rotationNormal.x + " Y: " + rotationNormal.y + " Z: " + rotationNormal.z);
                 var angleFromZero = Vec3.orientedAngle(centerToZero, centerToIntersect, rotationNormal);
                 var distanceFromCenter = Vec3.distance(center, result.intersection);
                 var snapToInner = distanceFromCenter < innerRadius;
@@ -3732,6 +3764,7 @@ SelectionDisplay = (function() {
                 }
 
             }
+            print("================== HANDLE_YAW(Mve) <- =======================");
         }
     });
 
@@ -3739,6 +3772,7 @@ SelectionDisplay = (function() {
     addGrabberTool(pitchHandle, {
         mode: "ROTATE_PITCH",
         onBegin: function(event) {
+            print("================== HANDLE_PITCH(Beg) -> =======================");
             SelectionManager.saveProperties();
             initialPosition = SelectionManager.worldPosition;
 
@@ -3780,8 +3814,10 @@ SelectionDisplay = (function() {
             });
 
             updateRotationDegreesOverlay(0, pitchHandleRotation, pitchCenter);
+            print("================== HANDLE_PITCH(Beg) <- =======================");
         },
         onEnd: function(event, reason) {
+            print("================== HANDLE_PITCH(End) -> =======================");
             Overlays.editOverlay(rotateOverlayInner, {
                 visible: false
             });
@@ -3796,8 +3832,10 @@ SelectionDisplay = (function() {
             });
 
             pushCommandForSelections();
+            print("================== HANDLE_PITCH(End) <- =======================");
         },
         onMove: function(event) {
+            print("================== HANDLE_PITCH(Mve) -> =======================");
             var pickRay = generalComputePickRay(event.x, event.y);
             Overlays.editOverlay(selectionBox, {
                 visible: false
@@ -3814,6 +3852,7 @@ SelectionDisplay = (function() {
                 var centerToIntersect = Vec3.subtract(result.intersection, center);
                 // Note: orientedAngle which wants normalized centerToZero & centerToIntersect, handles
                 //       this internally, so it's fine to pass non-normalized versions here.
+                print("    RotNormal - X: " + rotationNormal.x + " Y: " + rotationNormal.y + " Z: " + rotationNormal.z);
                 var angleFromZero = Vec3.orientedAngle(centerToZero, centerToIntersect, rotationNormal);
 
                 var distanceFromCenter = Vec3.distance(center, result.intersection);
@@ -3890,6 +3929,7 @@ SelectionDisplay = (function() {
                     });
                 }
             }
+            print("================== HANDLE_PITCH(Mve) <- =======================");
         }
     });
 
@@ -3897,6 +3937,7 @@ SelectionDisplay = (function() {
     addGrabberTool(rollHandle, {
         mode: "ROTATE_ROLL",
         onBegin: function(event) {
+            print("================== HANDLE_ROLL(Beg) -> =======================");
             SelectionManager.saveProperties();
             initialPosition = SelectionManager.worldPosition;
 
@@ -3938,8 +3979,10 @@ SelectionDisplay = (function() {
             });
 
             updateRotationDegreesOverlay(0, rollHandleRotation, rollCenter);
+            print("================== HANDLE_ROLL(Beg) <- =======================");
         },
         onEnd: function(event, reason) {
+            print("================== HANDLE_ROLL(End) -> =======================");
             Overlays.editOverlay(rotateOverlayInner, {
                 visible: false
             });
@@ -3954,8 +3997,10 @@ SelectionDisplay = (function() {
             });
 
             pushCommandForSelections();
+            print("================== HANDLE_ROLL(End) <- =======================");
         },
         onMove: function(event) {
+            print("================== HANDLE_ROLL(Mve) -> =======================");
             var pickRay = generalComputePickRay(event.x, event.y);
             Overlays.editOverlay(selectionBox, {
                 visible: false
@@ -3972,6 +4017,7 @@ SelectionDisplay = (function() {
                 var centerToIntersect = Vec3.subtract(result.intersection, center);
                 // Note: orientedAngle which wants normalized centerToZero & centerToIntersect, handles
                 //       this internally, so it's fine to pass non-normalized versions here.
+                print("    RotNormal - X: " + rotationNormal.x + " Y: " + rotationNormal.y + " Z: " + rotationNormal.z);
                 var angleFromZero = Vec3.orientedAngle(centerToZero, centerToIntersect, rotationNormal);
 
                 var distanceFromCenter = Vec3.distance(center, result.intersection);
@@ -4047,6 +4093,8 @@ SelectionDisplay = (function() {
                     });
                 }
             }
+            print("================== HANDLE_ROLL(Mve) <- =======================");
+
         }
     });
 
@@ -4067,7 +4115,10 @@ SelectionDisplay = (function() {
 
     // FUNCTION: MOUSE PRESS EVENT
     that.mousePressEvent = function(event) {
-        var wantDebug = false;
+        var wantDebug = true;
+        if ( wantDebug ) {
+            print( "=============== eST::MousePressEvent BEG =======================");
+        }
         if (!event.isLeftButton && !that.triggered) {
             // if another mouse button than left is pressed ignore it
             return false;
@@ -4099,6 +4150,7 @@ SelectionDisplay = (function() {
 
             var tool = grabberTools[result.overlayID];
             if (tool) {
+                print("Intersected with known table tool.");
                 activeTool = tool;
                 mode = tool.mode;
                 somethingClicked = 'tool';
@@ -4106,8 +4158,10 @@ SelectionDisplay = (function() {
                     activeTool.onBegin(event);
                 }
             } else {
+                print("Intersected with unregistered tool...");
                 switch (result.overlayID) {
                     case grabberMoveUp:
+                        print("grabberMoveUp");
                         mode = "TRANSLATE_UP_DOWN";
                         somethingClicked = mode;
 
@@ -4123,6 +4177,7 @@ SelectionDisplay = (function() {
                     case grabberNEAR:
                     case grabberEdgeTN: // TODO: maybe this should be TOP+NEAR stretching?
                     case grabberEdgeBN: // TODO: maybe this should be BOTTOM+FAR stretching?
+                        print("grabberNear variant");
                         mode = "STRETCH_NEAR";
                         somethingClicked = mode;
                         break;
@@ -4130,31 +4185,37 @@ SelectionDisplay = (function() {
                     case grabberFAR:
                     case grabberEdgeTF: // TODO: maybe this should be TOP+FAR stretching?
                     case grabberEdgeBF: // TODO: maybe this should be BOTTOM+FAR stretching?
+                        print("grabberFar variant");
                         mode = "STRETCH_FAR";
                         somethingClicked = mode;
                         break;
                     case grabberTOP:
+                        print("grabberTOP");
                         mode = "STRETCH_TOP";
                         somethingClicked = mode;
                         break;
                     case grabberBOTTOM:
+                        print("grabberBOTTOM");
                         mode = "STRETCH_BOTTOM";
                         somethingClicked = mode;
                         break;
                     case grabberRIGHT:
                     case grabberEdgeTR: // TODO: maybe this should be TOP+RIGHT stretching?
                     case grabberEdgeBR: // TODO: maybe this should be BOTTOM+RIGHT stretching?
+                        print("grabberRight variant");
                         mode = "STRETCH_RIGHT";
                         somethingClicked = mode;
                         break;
                     case grabberLEFT:
                     case grabberEdgeTL: // TODO: maybe this should be TOP+LEFT stretching?
                     case grabberEdgeBL: // TODO: maybe this should be BOTTOM+LEFT stretching?
+                        print("grabberLeft variant");
                         mode = "STRETCH_LEFT";
                         somethingClicked = mode;
                         break;
 
                     default:
+                        print("UNKNOWN( " + result.overlayID + " )");
                         mode = "UNKNOWN";
                         break;
                 }
@@ -4164,6 +4225,7 @@ SelectionDisplay = (function() {
         // if one of the items above was clicked, then we know we are in translate or stretch mode, and we
         // should hide our rotate handles...
         if (somethingClicked) {
+            print("Click is triggering hiding of handles, hopefully");
             Overlays.editOverlay(yawHandle, {
                 visible: false
             });
@@ -4206,6 +4268,7 @@ SelectionDisplay = (function() {
             originalRoll = roll;
 
             if (result.intersects) {
+                print("Intersection detected with handle...");
                 var resultTool = grabberTools[result.overlayID];
                 if (resultTool) {
                     activeTool = resultTool;
@@ -4217,15 +4280,18 @@ SelectionDisplay = (function() {
                 }
                 switch (result.overlayID) {
                     case yawHandle:
+                        print("Handle_YAW");
                         mode = "ROTATE_YAW";
                         somethingClicked = mode;
                         overlayOrientation = yawHandleRotation;
                         overlayCenter = yawCenter;
                         yawZero = result.intersection;
                         rotationNormal = yawNormal;
+                        print("rotationNormal set to: " + rotationNormal.x + ", " + rotationNormal.y + ", " + rotationNormal.z);
                         break;
 
                     case pitchHandle:
+                        print("Handle_PITCH");
                         mode = "ROTATE_PITCH";
                         initialPosition = SelectionManager.worldPosition;
                         somethingClicked = mode;
@@ -4233,15 +4299,18 @@ SelectionDisplay = (function() {
                         overlayCenter = pitchCenter;
                         pitchZero = result.intersection;
                         rotationNormal = pitchNormal;
+                        print("rotationNormal set to: " + rotationNormal.x + ", " + rotationNormal.y + ", " + rotationNormal.z);
                         break;
 
                     case rollHandle:
+                        print("Handle_ROLL");
                         mode = "ROTATE_ROLL";
                         somethingClicked = mode;
                         overlayOrientation = rollHandleRotation;
                         overlayCenter = rollCenter;
                         rollZero = result.intersection;
                         rotationNormal = rollNormal;
+                        print("rotationNormal set to: " + rotationNormal.x + ", " + rotationNormal.y + ", " + rotationNormal.z);
                         break;
 
                     default:
@@ -4443,6 +4512,10 @@ SelectionDisplay = (function() {
         Overlays.editOverlay(rollHandle, {
             ignoreRayIntersection: false
         });
+
+        if ( wantDebug ) {
+            print( "=============== eST::MousePressEvent END =======================");
+        }
 
         return somethingClicked;
     };
