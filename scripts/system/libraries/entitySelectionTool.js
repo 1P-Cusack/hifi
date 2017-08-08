@@ -2389,7 +2389,7 @@ SelectionDisplay = (function() {
         startingDistance: 0.0,
         startingElevation: 0.0,
         onBegin: function(event,isAltFromGrab, intersectInfo) {
-            var wantDebug = true;
+            var wantDebug = false;
             if(wantDebug){
                 print("================== TRANSLATE_XZ(Beg) -> =======================");
                 Vec3.print("    intersectInfo.queryRay", intersectInfo.queryRay);
@@ -3630,7 +3630,7 @@ SelectionDisplay = (function() {
     addGrabberTool(yawHandle, {
         mode: "ROTATE_YAW",
         onBegin: function(event) {
-            var wantDebug = true;
+            var wantDebug = false;
             if (wantDebug) {
                 print("================== HANDLE_YAW(Beg) -> =======================");
             }
@@ -3834,7 +3834,7 @@ SelectionDisplay = (function() {
     addGrabberTool(pitchHandle, {
         mode: "ROTATE_PITCH",
         onBegin: function (event) {
-            var wantDebug = true;
+            var wantDebug = false;
             if (wantDebug){
                 print("================== HANDLE_PITCH(Beg) -> =======================");
             }
@@ -4028,7 +4028,7 @@ SelectionDisplay = (function() {
     addGrabberTool(rollHandle, {
         mode: "ROTATE_ROLL",
         onBegin: function (event) {
-            var wantDebug = true;
+            var wantDebug = false;
             if(wantDebug){
                 print("================== HANDLE_ROLL(Beg) -> =======================");
             }
@@ -4235,7 +4235,7 @@ SelectionDisplay = (function() {
 
     // FUNCTION DEF(s): Intersection Check Helpers
     function testRayIntersect(queryRay, overlayIncludes, overlayExcludes) {
-        var wantDebug = true;
+        var wantDebug = false;
         if ((queryRay === undefined) || (queryRay === null)) {
             if (wantDebug) {
                 print("testRayIntersect - EARLY EXIT -> queryRay is undefined OR null!");
@@ -4286,12 +4286,10 @@ SelectionDisplay = (function() {
 
         return intersectObj;
     }
-    //--------------------
 
-    //---------------------------------------
     // FUNCTION: MOUSE PRESS EVENT
     that.mousePressEvent = function (event) {
-        var wantDebug = true;
+        var wantDebug = false;
         if (wantDebug) {
             print("=============== eST::MousePressEvent BEG =======================");
         }
