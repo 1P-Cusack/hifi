@@ -2766,7 +2766,6 @@ SelectionDisplay = (function() {
             }
             
             planeNormal = Vec3.multiplyQbyV(rotation, planeNormal);
-            var pickRay = generalComputePickRay(event.x, event.y);
             lastPick = rayPlaneIntersection(pickRay,
                 pickRayPosition,
                 planeNormal);
