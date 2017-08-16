@@ -1087,7 +1087,7 @@ SelectionDisplay = (function() {
     // that correlates to the tool you wish to query.
     // @return: bool - Indicates if the activeTool is that queried.
     function isActiveTool(toolHandle) {
-        var wantDebug = true;
+        var wantDebug = false;
         if ( ! activeTool || ! toolHandle ){
             if(wantDebug){
                 if ( activeTool ){
@@ -1606,7 +1606,7 @@ SelectionDisplay = (function() {
 
     // FUNCTION: UPDATE HANDLES
     that.updateHandles = function() {
-        var wantDebug = true;
+        var wantDebug = false;
         if(wantDebug){
             print( "======> Update Handles =======" );
             print( "    Selections Count: " + SelectionManager.selections.length );
@@ -1869,6 +1869,8 @@ SelectionDisplay = (function() {
                 if(properties.isSpotlight) {
                     that.setPointLightHandlesVisible( false );
 
+                    var distance = (properties.dimensions.z / 2) * Math.sin(properties.cutoff * (Math.PI / 180));
+                    var showEdgeSpotGrabbers = ! (inModeTranslate || inModeRotate);
                     Overlays.editOverlay(grabberSpotLightCenter, {
                         position: position,
                         visible: false,
@@ -1876,29 +1878,28 @@ SelectionDisplay = (function() {
                     Overlays.editOverlay(grabberSpotLightRadius, {
                         position: NEAR,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgeSpotGrabbers,
                     });
-                    var distance = (properties.dimensions.z / 2) * Math.sin(properties.cutoff * (Math.PI / 180));
 
                     Overlays.editOverlay(grabberSpotLightL, {
                         position: EdgeNL,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgeSpotGrabbers,
                     });
                     Overlays.editOverlay(grabberSpotLightR, {
                         position: EdgeNR,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgeSpotGrabbers,
                     });
                     Overlays.editOverlay(grabberSpotLightT, {
                         position: EdgeTN,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgeSpotGrabbers,
                     });
                     Overlays.editOverlay(grabberSpotLightB, {
                         position: EdgeBN,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgeSpotGrabbers,
                     });
                     Overlays.editOverlay(grabberSpotLightCircle, {
                         position: NEAR,
@@ -1935,36 +1936,37 @@ SelectionDisplay = (function() {
 
                 } else { //..it's a PointLight
                     that.setSpotLightHandlesVisible( false );
-                    
+
+                    var showEdgePointGrabbers = ! inModeTranslate;
                     Overlays.editOverlay(grabberPointLightT, {
                         position: TOP,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgePointGrabbers,
                     });
                     Overlays.editOverlay(grabberPointLightB, {
                         position: BOTTOM,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgePointGrabbers,
                     });
                     Overlays.editOverlay(grabberPointLightL, {
                         position: LEFT,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgePointGrabbers,
                     });
                     Overlays.editOverlay(grabberPointLightR, {
                         position: RIGHT,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgePointGrabbers,
                     });
                     Overlays.editOverlay(grabberPointLightF, {
                         position: FAR,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgePointGrabbers,
                     });
                     Overlays.editOverlay(grabberPointLightN, {
                         position: NEAR,
                         rotation: rotation,
-                        visible: true,
+                        visible: showEdgePointGrabbers,
                     });
                     Overlays.editOverlay(grabberPointLightCircleX, {
                         position: position,
