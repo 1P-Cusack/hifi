@@ -122,6 +122,7 @@
 #include <SceneScriptingInterface.h>
 #include <ScriptEngines.h>
 #include <ScriptCache.h>
+#include <ShapeEntityItem.h>
 #include <SoundCache.h>
 #include <ui/TabletScriptingInterface.h>
 #include <ui/ToolbarScriptingInterface.h>
@@ -4407,6 +4408,8 @@ void Application::init() {
 
     // fire off an immediate domain-server check in now that settings are loaded
     DependencyManager::get<NodeList>()->sendDomainServerCheckIn();
+
+    ShapeEntityItem::setShapeInfoCalulator(ShapeEntityItem::ShapeInfoCalculator(&shapeInfoCalculator));
 
     getEntities()->init();
     getEntities()->setEntityLoadingPriorityFunction([this](const EntityItem& item) {
