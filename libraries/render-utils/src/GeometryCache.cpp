@@ -50,6 +50,26 @@
 #include "grid_frag.h"
 
 //#define WANT_DEBUG
+#define DEBUG_SIMPLE_HULL_POINT_GENERATION 1
+#define DEBUG_SIMPLE_HULL_VERTS 0
+
+static const std::array<QString, GeometryCache::NUM_SHAPES> GEOCACHE_SHAPE_STRINGS{ {
+        "Line",
+        "Triangle",
+        "Quad",
+        "Hexagon",
+        "Octagon",
+        "Circle",
+        "Cube",
+        "Sphere",
+        "Tetrahedron",
+        "Octahedron",
+        "Dodecahedron",
+        "Icosahedron",
+        "Torus",
+        "Cone",
+        "Cylinder"
+    } };
 
 static std::array<GeometryCache::Shape, entity::NUM_SHAPES> MAPPING{ {
         GeometryCache::Triangle,
@@ -109,11 +129,32 @@ void GeometryCache::computeSimpleHullPointListForShape(const ShapeEntityItem * c
     const gpu::BufferView::Size numItems = shapeVerts.getNumElements();
     const glm::vec3 halfExtents = shapePtr->getDimensions() * 0.5f;
 
+#if DEBUG_SIMPLE_HULL_POINT_GENERATION
+    shapePtr->debugDump();
+    qCDebug(entities) << "------------------ Begin Vert Info( ComputeShapeInfo )[FlatShapes] -----------------------------";
+    qCDebug(entities) << " name:" << shapePtr->getName() << " is a: " << GeometryCache::stringFromShape(entityGeometryShape) << "(Enum Id: " << entityGeometryShape << ")" << " has " << numItems << " vert info pairs.";
+#endif
+
     outPointList.reserve((int)numItems);
     for (gpu::BufferView::Index i = 0; i < (gpu::BufferView::Index)numItems; ++i) {
         const geometry::Vec &curNorm = shapeNorms.get<geometry::Vec>(i);
+#if DEBUG_SIMPLE_HULL_POINT_GENERATION && DEBUG_SIMPLE_HULL_VERTS
+        const geometry::Vec &curVert = shapeVerts.get<geometry::Vec>(i);
+        qCDebug(entities) << "    --------------------";
+        qCDebug(entities) << "         Vert( " << i << " ): " << debugTreeVector(curVert);
+        qCDebug(entities) << "         Norm( " << i << " ): " << debugTreeVector(curNorm);
+#endif
+
         outPointList.push_back(curNorm * halfExtents);
+
+#if DEBUG_SIMPLE_HULL_POINT_GENERATION && DEBUG_SIMPLE_HULL_VERTS
+        qCDebug(entities) << "         Point( " << i << " ): " << debugTreeVector((curNorm * halfExtents));
+#endif
     }
+
+#if DEBUG_SIMPLE_HULL_POINT_GENERATION
+    qCDebug(entities) << "-------------------- End Vert Info( ComputeShapeInfo ) -----------------------------";
+#endif
 }
 
 template <size_t SIDES>
@@ -481,6 +522,9 @@ void GeometryCache::buildShapes() {
 
 const GeometryCache::ShapeData * GeometryCache::getShapeData(const Shape shape) const {
     if (((int)shape < 0) || ((int)shape >= (int)_shapes.size())){
+        qCWarning(entities) << "GeometryCache::getShapeData - Invalid shape " << shape << " specified. Returning default fallback.";
+
+        //--EARLY EXIT--( No valid shape data for shape )
         return nullptr;
     }
 
@@ -489,10 +533,25 @@ const GeometryCache::ShapeData * GeometryCache::getShapeData(const Shape shape) 
 
 GeometryCache::Shape GeometryCache::getShapeForEntityShape(int entityShape) {
     if ((entityShape < 0) || (entityShape >= (int)MAPPING.size())){
+        qCWarning(entities) << "GeometryCache::getShapeForEntityShape - Invalid shape " << entityShape << " specified. Returning default fallback.";
+
+        //--EARLY EXIT--( fallback to default assumption )
         return GeometryCache::Sphere;
     }
 
     return MAPPING[entityShape];
+}
+
+QString GeometryCache::stringFromShape(GeometryCache::Shape geoShape)
+{
+    if (((int)geoShape < 0) || ((int)geoShape >= (int)GeometryCache::NUM_SHAPES)) {
+        qCWarning(entities) << "GeometryCache::stringFromShape - Invalid shape " << geoShape << " specified.";
+
+        //--EARLY EXIT--
+        return "INVALID_GEOCACHE_SHAPE";
+    }
+
+    return GEOCACHE_SHAPE_STRINGS[geoShape];
 }
 
 gpu::Stream::FormatPointer& getSolidStreamFormat() {

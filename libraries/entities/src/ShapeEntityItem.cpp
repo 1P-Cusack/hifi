@@ -226,7 +226,7 @@ void ShapeEntityItem::debugDump() const {
     quint64 now = usecTimestampNow();
     qCDebug(entities) << "SHAPE EntityItem id:" << getEntityItemID() << "---------------------------------------------";
     qCDebug(entities) << "               name:" << _name;
-    qCDebug(entities) << "              shape:" << stringFromShape(_shape) << " (EnumId: " << _shape << " )";
+    qCDebug(entities) << "              shape:" << stringFromShape(_shape) << " (EnumId: " << _shape << ")";
     qCDebug(entities) << "              color:" << _color[0] << "," << _color[1] << "," << _color[2];
     qCDebug(entities) << "           position:" << debugTreeVector(getPosition());
     qCDebug(entities) << "         dimensions:" << debugTreeVector(getDimensions());
