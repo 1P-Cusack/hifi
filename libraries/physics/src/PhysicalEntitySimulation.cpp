@@ -217,6 +217,12 @@ void PhysicalEntitySimulation::getObjectsToAddToPhysics(VectorOfMotionStates& re
             }
         } else if (entity->isReadyToComputeShape()) {
             ShapeInfo shapeInfo;
+            const bool isShapeEntity = (entity->getType() == EntityTypes::Shape);
+            if (isShapeEntity)
+            {
+                qDebug() << "-------- PhysicalEntitySimulation::getObjectsToAddToPhysics ---------------";
+                qDebug() << "\tProcessing ShapeEntity: " << entity->getName();
+            }
             entity->computeShapeInfo(shapeInfo);
             int numPoints = shapeInfo.getLargestSubshapePointCount();
             if (shapeInfo.getType() == SHAPE_TYPE_COMPOUND) {
@@ -226,7 +232,7 @@ void PhysicalEntitySimulation::getObjectsToAddToPhysics(VectorOfMotionStates& re
                         << "at" << entity->getPosition() << " will be reduced";
                 }
             }
-            btCollisionShape* shape = const_cast<btCollisionShape*>(ObjectMotionState::getShapeManager()->getShape(shapeInfo));
+            btCollisionShape* shape = const_cast<btCollisionShape*>(ObjectMotionState::getShapeManager()->getShape(shapeInfo, isShapeEntity));
             if (shape) {
                 EntityMotionState* motionState = new EntityMotionState(shape, entity);
                 entity->setPhysicsInfo(static_cast<void*>(motionState));
@@ -236,6 +242,11 @@ void PhysicalEntitySimulation::getObjectsToAddToPhysics(VectorOfMotionStates& re
             } else {
                 //qWarning() << "Failed to generate new shape for entity." << entity->getName();
                 ++entityItr;
+            }
+            if (isShapeEntity)
+            {
+                qDebug() << "-------- PhysicalEntitySimulation::getObjectsToAddToPhysics ---------------";
+                qDebug() << "\tEnd Processing ShapeEntity: " << entity->getName();
             }
         } else {
             ++entityItr;

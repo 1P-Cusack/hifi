@@ -247,15 +247,18 @@ void deleteStaticMeshArray(btTriangleIndexVertexArray* dataArray) {
     delete dataArray;
 }
 
-const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info) {
+const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info, bool isShape) {
     btCollisionShape* shape = NULL;
     int type = info.getType();
+    QString stringType = "";
     switch(type) {
         case SHAPE_TYPE_BOX: {
+            stringType = "Box";
             shape = new btBoxShape(glmToBullet(info.getHalfExtents()));
         }
         break;
         case SHAPE_TYPE_SPHERE: {
+            stringType = "Sphere";
             glm::vec3 halfExtents = info.getHalfExtents();
             float radius = glm::max(halfExtents.x, glm::max(halfExtents.y, halfExtents.z));
             shape = new btSphereShape(radius);
@@ -271,17 +274,21 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
                     && fabsf(radius - halfExtents.z) / radius < MIN_RELATIVE_SPHERICAL_ERROR) {
                 // close enough to true sphere
                 shape = new btSphereShape(radius);
-            } else {
+                stringType = "Ellipsoid_Sphere";
+            }
+            else {
                 ShapeInfo::PointList points;
                 points.reserve(NUM_UNIT_SPHERE_DIRECTIONS);
                 for (uint32_t i = 0; i < NUM_UNIT_SPHERE_DIRECTIONS; ++i) {
                     points.push_back(bulletToGLM(_unitSphereDirections[i]) * halfExtents);
                 }
                 shape = createConvexHull(points);
+                stringType = "Ellipsoid_Hull";
             }
         }
         break;
         case SHAPE_TYPE_CAPSULE_Y: {
+            stringType = "Capsule_Y";
             glm::vec3 halfExtents = info.getHalfExtents();
             float radius = halfExtents.x;
             float height = 2.0f * halfExtents.y;
@@ -289,6 +296,7 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
         }
         break;
         case SHAPE_TYPE_CAPSULE_X: {
+            stringType = "Capsule_X";
             glm::vec3 halfExtents = info.getHalfExtents();
             float radius = halfExtents.y;
             float height = 2.0f * halfExtents.x;
@@ -296,6 +304,7 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
         }
         break;
         case SHAPE_TYPE_CAPSULE_Z: {
+            stringType = "Capsule_Z";
             glm::vec3 halfExtents = info.getHalfExtents();
             float radius = halfExtents.x;
             float height = 2.0f * halfExtents.z;
@@ -303,12 +312,14 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
         }
         break;
         case SHAPE_TYPE_CYLINDER_X: {
+            stringType = "Cylinder_X";
             const glm::vec3 halfExtents = info.getHalfExtents();
             const btVector3 btHalfExtents(halfExtents.x, halfExtents.y, halfExtents.z);
             shape = new btCylinderShapeX(btHalfExtents);
         }
         break;
         case SHAPE_TYPE_CYLINDER_Z: {
+            stringType = "Cylinder_Z";
             const glm::vec3 halfExtents = info.getHalfExtents();
             const btVector3 btHalfExtents(halfExtents.x, halfExtents.y, halfExtents.z);
             shape = new btCylinderShapeZ(btHalfExtents);
@@ -316,6 +327,7 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
         break;
         case SHAPE_TYPE_CIRCLE:
         case SHAPE_TYPE_CYLINDER_Y: {
+            stringType = (type == SHAPE_TYPE_CYLINDER_Y) ? "Cylinder_Y" : "Circle";
             const glm::vec3 halfExtents = info.getHalfExtents();
             const btVector3 btHalfExtents(halfExtents.x, halfExtents.y, halfExtents.z);
             shape = new btCylinderShape(btHalfExtents);
@@ -323,6 +335,7 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
         break;
         case SHAPE_TYPE_COMPOUND:
         case SHAPE_TYPE_SIMPLE_HULL: {
+            stringType = (type == SHAPE_TYPE_COMPOUND) ? "Hull_Compound" : "Hull_Simple";
             const ShapeInfo::PointCollection& pointCollection = info.getPointCollection();
             uint32_t numSubShapes = info.getNumSubShapes();
             if (numSubShapes == 1) {
@@ -342,6 +355,7 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
         }
         break;
         case SHAPE_TYPE_SIMPLE_COMPOUND: {
+            stringType = "Simple_Compound";
             const ShapeInfo::PointCollection& pointCollection = info.getPointCollection();
             const ShapeInfo::TriangleIndices& triangleIndices = info.getTriangleIndices();
             uint32_t numIndices = triangleIndices.size();
@@ -393,6 +407,7 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
         }
         break;
         case SHAPE_TYPE_STATIC_MESH: {
+            stringType = "StaticMesh";
             btTriangleIndexVertexArray* dataArray = createStaticMeshArray(info);
             if (dataArray) {
                 shape = new StaticMeshShape(dataArray);
@@ -423,6 +438,11 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info)
                 shape = compound;
             }
         }
+    }
+
+    if (isShape)
+    {
+        qDebug() << "ShapeFactory:  Generated New Shape - " << stringType;
     }
     return shape;
 }

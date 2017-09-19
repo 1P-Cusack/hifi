@@ -396,12 +396,17 @@ void runUnitTests() {
 }
 
 void shapeInfoCalculator(const ShapeEntityItem * const shapeEntity, ShapeInfo &shapeInfo) {
+
+    qCWarning(interfaceapp) << " -------------------------- ";
+    qCWarning(interfaceapp) << " Calculating ShapeInfo for " << shapeEntity->getID();
     ShapeInfo::PointCollection pointCollection;
     ShapeInfo::PointList points;
     pointCollection.push_back(points);
 
     GeometryCache::computeSimpleHullPointListForShape(shapeEntity, pointCollection.back());
+    qCWarning(interfaceapp) << " Size of PointList(Back): " << pointCollection.back().size();
     shapeInfo.setPointCollection(pointCollection);
+    qCWarning(interfaceapp) << " -------------------------- ";
 }
 
 

@@ -26,7 +26,7 @@ public:
     ~ShapeManager();
 
     /// \return pointer to shape
-    const btCollisionShape* getShape(const ShapeInfo& info);
+    const btCollisionShape* getShape(const ShapeInfo& info, const bool isShape = false);
 
     /// \return true if shape was found and released
     bool releaseShape(const btCollisionShape* shape);

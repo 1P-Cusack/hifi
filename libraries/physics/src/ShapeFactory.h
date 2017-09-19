@@ -20,7 +20,7 @@
 // translates between ShapeInfo and btShape
 
 namespace ShapeFactory {
-    const btCollisionShape* createShapeFromInfo(const ShapeInfo& info);
+    const btCollisionShape* createShapeFromInfo(const ShapeInfo& info, const bool isShape);
     void deleteShape(const btCollisionShape* shape);
 
     //btTriangleIndexVertexArray* createStaticMeshArray(const ShapeInfo& info);
