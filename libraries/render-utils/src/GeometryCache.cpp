@@ -131,7 +131,7 @@ void GeometryCache::computeSimpleHullPointListForShape(const ShapeEntityItem * c
 
 #if DEBUG_SIMPLE_HULL_POINT_GENERATION
     shapePtr->debugDump();
-    qCDebug(entities) << "------------------ Begin Vert Info( ComputeShapeInfo )[FlatShapes] -----------------------------";
+    qCDebug(entities) << "------------------ Begin Vert Info( ComputeShapeInfo ) -----------------------------";
     qCDebug(entities) << " name:" << shapePtr->getName() << " is a: " << GeometryCache::stringFromShape(entityGeometryShape) << "(Enum Id: " << entityGeometryShape << ")" << " has " << numItems << " vert info pairs.";
 #endif
 

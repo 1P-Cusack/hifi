@@ -335,20 +335,50 @@ const btCollisionShape* ShapeFactory::createShapeFromInfo(const ShapeInfo& info,
         break;
         case SHAPE_TYPE_COMPOUND:
         case SHAPE_TYPE_SIMPLE_HULL: {
-            stringType = (type == SHAPE_TYPE_COMPOUND) ? "Hull_Compound" : "Hull_Simple";
+            stringType = "Hull_Simple";
             const ShapeInfo::PointCollection& pointCollection = info.getPointCollection();
             uint32_t numSubShapes = info.getNumSubShapes();
             if (numSubShapes == 1) {
                 if (!pointCollection.isEmpty()) {
                     shape = createConvexHull(pointCollection[0]);
                 }
+
+                if (isShape && shape) {
+                    btConvexHullShape * const pConvexHull = static_cast<btConvexHullShape *>(shape);
+                    const int numHullPoints = pConvexHull->getNumPoints();
+                    qDebug() << "   ------------- HULL POINTS BEG --------------    ";
+                    for ( int pointIndex = 0; pointIndex < numHullPoints; ++pointIndex ){
+                        const glm::vec3 curScaledHullPoint = bulletToGLM(pConvexHull->getScaledPoint(pointIndex));
+                        const glm::vec3 curHullPoint = bulletToGLM(pConvexHull->getUnscaledPoints()[pointIndex]);
+                        qDebug() << "HullPoint( " << pointIndex << " ) - Raw: [" << curHullPoint[0] << ", " << curHullPoint[1] << ", " << curHullPoint[2] 
+                            << "] vs Scaled: [" << curScaledHullPoint[0] << ", " << curScaledHullPoint[1] << ", " << curScaledHullPoint[2] << "]";
+                    }
+                    qDebug() << "   ------------- HULL POINTS END --------------    ";
+                }
+
             } else {
+                stringType = "Hull_Compound";
                 auto compound = new btCompoundShape();
                 btTransform trans;
                 trans.setIdentity();
+                int hullIndex = 0;
                 foreach (const ShapeInfo::PointList& hullPoints, pointCollection) {
                     btConvexHullShape* hull = createConvexHull(hullPoints);
                     compound->addChildShape(trans, hull);
+
+                    if (isShape) {
+                        const int numHullPoints = hull->getNumPoints();
+                        qDebug() << "   ------------- HULL POINTS BEG " << hullIndex << " --------------    ";
+                            for (int pointIndex = 0; pointIndex < numHullPoints; ++pointIndex) {
+                                glm::vec3 curScaledHullPoint = bulletToGLM(hull->getScaledPoint(pointIndex));
+                                glm::vec3 curHullPoint = bulletToGLM(hull->getUnscaledPoints()[pointIndex]);
+                                qDebug() << "HullPoint( " << pointIndex << " ) - Raw: [" << curHullPoint[0] << ", " << curHullPoint[1] << ", " << curHullPoint[2]
+                                    << "] vs Scaled: [" << curScaledHullPoint[0] << ", " << curScaledHullPoint[1] << ", " << curScaledHullPoint[2] << "]";
+                            }
+                        qDebug() << "   ------------- HULL POINTS END " << hullIndex << " --------------    ";
+                    }
+
+                    ++hullIndex;
                 }
                 shape = compound;
             }
