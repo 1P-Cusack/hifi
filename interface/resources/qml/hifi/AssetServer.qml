@@ -47,7 +47,8 @@ ScrollingWindow {
     }
 
     Component.onCompleted: {
-        ApplicationInterface.uploadRequest.connect(uploadClicked);
+        //ApplicationInterface.uploadRequest.connect(uploadClicked);
+        ApplicationInterface.uploadRequest.connect(uploadClickedOnCompComplete);
         assetMappingsModel.errorGettingMappings.connect(handleGetMappingsError);
         assetMappingsModel.autoRefreshEnabled = true;
 
@@ -385,6 +386,14 @@ ScrollingWindow {
     Timer {
         id: timer
     }
+    function uploadClickedOnQueue(fileUrl){
+        console.log("AssetServer.qml - uploadClickedOnQueue for: ", fileUrl );
+        uploadClicked(fileUrl);
+    }
+    function uploadClickedOnCompComplete(fileUrl){
+        console.log("AssetServer.qml - uploadClickedOnCompComplete for: ", fileUrl );
+        uploadClicked(fileUrl);
+    }
     function uploadClicked(fileUrl) {
         if (uploadOpen) {
             return;
@@ -438,8 +447,10 @@ ScrollingWindow {
         }
 
         if (fileUrl) {
+            console.log("AssetServer.qml - uploadClicked::onClicked -> Triggering doUpload with DropEvent with file: ", fileUrl);
             doUpload(fileUrl, true);
         } else {
+            console.log("AssetServer.qml - uploadClicked::onClicked -> null/undefined fileUrl: Triggering FileDialogBrowser.");
             var browser = desktop.fileDialog({
                 selectDirectory: false,
                 dir: currentDirectory
@@ -907,7 +918,8 @@ ScrollingWindow {
                     height: 30
                     width: 155
 
-                    onClickedQueued: uploadClicked()
+                    //onClickedQueued: uploadClicked()
+                    onClickedQueued: uploadClickedOnQueue()
                 }
 
                 Item {
