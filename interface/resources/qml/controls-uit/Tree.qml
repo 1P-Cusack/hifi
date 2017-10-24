@@ -18,12 +18,16 @@ import "../styles-uit"
 TreeView {
     id: treeView
 
+    signal selectedFile(var curSelectionIndex, var prevSelectionIndex );
+
     property var treeModel: ListModel { }
     property bool centerHeaderText: false
     property int colorScheme: hifi.colorSchemes.light
     readonly property bool isLightColorScheme: colorScheme == hifi.colorSchemes.light
 
     property var modifyEl: function(index, data) { return false; }
+
+    property var branchModelIndices: [ ]
 
     model: treeModel
     selection: ItemSelectionModel {
@@ -125,6 +129,15 @@ TreeView {
                 left: parent ? parent.left : undefined
                 leftMargin: hifi.dimensions.tablePadding / 2
             }
+
+            onTextChanged: {
+                console.log("Tree.qml - branch::onTextChanged - " + styleData.value + " Selected: " + styleData.selected + " Expanded: " + styleData.isExpanded );
+            }
+
+            Component.onCompleted: {
+                console.log("Tree.qml - branch::onCompleted - branches[" + treeView.branchModelIndices.length + "]: " + styleData.value + " Selected: " + styleData.selected + " Expanded: " + styleData.isExpanded );
+                treeView.branchModelIndices[ treeView.branchModelIndices.length ] = styleData.index;
+            }
         }
 
         handle: Item {
@@ -223,6 +236,30 @@ TreeView {
     onDoubleClicked: isExpanded(index) ? collapse(index) : expand(index)
 
     onClicked: {
+        console.log("Tree.qml - onClicked - Triggered");
+        var allowFileClickSignal = true;
+        for (var branchIndex = 0; branchIndex < branchModelIndices.length; ++branchIndex) {
+            if (index != branchModelIndices[ branchIndex ]) {
+                continue;
+            }
+
+            console.log("Tree.qml - onClicked - Branch Screening: Match Found at arrIndex: " + branchIndex);
+            allowFileClickSignal = false;
+        }
+
+        var prevSelectedModelIndex = selectionModel.currentIndex;
         selectionModel.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect);
+        if (allowFileClickSignal) {
+            console.log("Tree.qml - onClicked - Emitting Signal: selectedFile.");
+            selectedFile(selectionModel.currentIndex, prevSelectedModelIndex);
+        }
+    }
+
+    onExpanded: {
+        console.log("Tree.qml - onExpanded - Triggered");
+    }
+
+    onCollapsed: {
+        console.log("Tree.qml - onCollapsed - Triggered");
     }
 }
