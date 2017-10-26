@@ -341,7 +341,7 @@ ScrollingWindow {
             for (var i = 0; i < selectedItems; i++) {
                  treeView.selection.setCurrentIndex(treeView.selection.selectedIndexes[i], 0x100);
                  index = treeView.selection.currentIndex;
-                 path[i] = assetProxyModel.data(index, 0x100);                  
+                 path[i] = assetProxyModel.data(index, 0x100);
             }
         }
         
@@ -637,7 +637,7 @@ ScrollingWindow {
                         color: colorScheme == hifi.colorSchemes.light
                                 ? (styleData.selected ? hifi.colors.black : hifi.colors.baseGrayHighlight)
                                 : (styleData.selected ? hifi.colors.black : hifi.colors.lightGrayText)
-                       
+
                         elide: Text.ElideRight
                         horizontalAlignment: TextInput.AlignHCenter
 
@@ -747,16 +747,19 @@ ScrollingWindow {
             
             MouseArea {
                 id: treeViewMousePad
+                property bool releasedInMousePad: false
+
                 propagateComposedEvents: true
                 anchors.fill: parent
-                acceptedButtons: Qt.RightButton | Qt.LeftButton
+                acceptedButtons: Qt.RightButton
+                //acceptedButtons: Qt.RightButton | Qt.LeftButton
                 onClicked: {
-                    if (!HMD.active && (mouse.button === Qt.RightButton)) {  // Popup only displays properly on desktop
+                    if (!HMD.active /*&& (mouse.button === Qt.RightButton)*/) {  // Popup only displays properly on desktop
                         var index = treeView.indexAt(mouse.x, mouse.y);
                         treeView.selection.setCurrentIndex(index, 0x0002);
                         contextMenu.currentIndex = index;
                         contextMenu.popup();
-                    } else if ( mouse.button === Qt.LeftButton ) {
+                    }/* else if ( mouse.button === Qt.LeftButton ) {
                         var numDirs = treeView.branchModelIndices.length;
                         var index = treeView.indexAt(mouse.x, mouse.y);
                         for (var branchIndex = 0; branchIndex < numDirs; ++branchIndex) {
@@ -764,7 +767,7 @@ ScrollingWindow {
                                 continue;
                             }
 
-                            console.log("AssetServer.qml - onClicked - Branch Screening: Match Found at arrIndex: " + branchIndex);
+                            console.log("AssetServer.qml - treeViewMousePad::onClicked - Branch Screening: Match Found at arrIndex: " + branchIndex);
                             mouse.accepted = false;
                             break;
                         }
@@ -772,6 +775,33 @@ ScrollingWindow {
                         if ( mouse.accepted === true ) {
                             treeView.selection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect);
                         }
+                    }*/
+                }//END_OF( treeViewMousePad::onClicked )
+                onPressAndHold: {
+                    console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Triggered");
+                    if (drag.target == null) {
+                        console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Attempting to mark held selection.");
+                        treeView.markIndexForDrag(treeView.currentIndex);
+                    }
+                }
+
+                onEntered: {
+                    console.log("AssetServer.qml - treeViewMousePad::onEntered");
+                    releasedInMousePad = true;
+                    assetBrowseArea.state = "inCommonArea";
+                    assetExportArea.state = "inCommonArea";
+                }
+
+                onExited: {
+                    console.log("AssetServer.qml - treeViewMousePad::onExited");
+                    releasedInMousePad = false;
+                }
+
+                onReleased: {
+                    console.log("AssetServer.qml - treeViewMousePad::onRelease - Triggered");
+                    if ((drag.target !== null) && releasedInMousePad) {
+                        console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to clear drag selection.");
+                        treeView.clearDrag();
                     }
                 }
             }// END_OF( treeViewMousePad )
@@ -804,12 +834,169 @@ ScrollingWindow {
                 }
             }// END_OF( contextMenu )
 
+            function markIndexForDrag(curSelectionIndex) {
+                if (dragObject.setDragInfo(curSelectionIndex)) {
+                    treeViewMousePad.drag.target = dragObject;
+                    dragObject.x = Qt.binding(function() { return treeViewMousePad.mouseX - (dragObject.width / 2) });
+                    dragObject.y = Qt.binding(function() { return treeViewMousePad.mouseY - (dragObject.height / 2) });
+                } else if (dragObject.visible) {
+                    treeViewMousePad.drag.target = null;
+                    dragObject.visible = false;
+                }
+            }
+
+            function clearDrag() {
+                dragObject.reset();
+                treeViewMousePad.drag.target = null;
+            }
+
             onSelectedFile: {
-                var url = assetProxyModel.data(treeView.selection.currentIndex, 0x103);
-                var filename = url.slice(url.lastIndexOf('/') + 1);
-                console.log("AssetServer.qml - treeView::onSelectedFile - Current Selection is: " + filename + "(" + url + ")");
+                //markIndexForDrag(curSelectionIndex, prevSelectionIndex);
             }
         }// END_OF( treeView )
+
+        DropArea {
+            id: assetBrowseArea
+            width: root.width
+            height: root.height
+
+            Rectangle {
+                id: browseRect
+                anchors.fill: parent
+                color: "transparent"
+
+                states: [
+                    State {
+                        name: "inCommonArea"
+                        when: assetExportArea.containsDrag && assetBrowseArea.containsDrag
+                        PropertyChanges {
+                            target: browseRect
+                            color: "red"
+                        }
+                    },
+
+                    State {
+                        name: "inBrowseArea"
+                        when: !assetExportArea.containsDrag && assetBrowseArea.containsDrag
+                        PropertyChanges {
+                            target: browseRect
+                            color: "blue"
+                        }
+                    }
+                ]
+            }
+        }// END_OF( assetBrowseArea )
+
+        DropArea {
+            id: assetExportArea
+            parent: root.parent
+            keys: [ "AssetServer_AddToWorld" ]
+            width: root.parent.width
+            height: root.parent.height
+
+            onDropped: {
+                console.log("AssetServer.qml - assetExportArea::onDropped");
+                //addToWorld();
+            }
+
+            onEntered: {
+                console.log("AssetServer.qml - assetExportArea::onEntered");
+            }
+
+            onExited: {
+                console.log("AssetServer.qml - assetExportArea::onExited");
+            }
+        
+            Rectangle {
+                id: exportRect
+                anchors.fill: parent
+                color: "yellow"
+
+                states: [
+                    State {
+                        name: "inCommonArea"
+                        when: assetExportArea.containsDrag && assetBrowseArea.containsDrag
+                        PropertyChanges {
+                            target: exportRect
+                            color: "green"
+                        }
+                    },
+
+                    State {
+                        name: "inExportArea"
+                        when: assetExportArea.containsDrag && !assetBrowseArea.containsDrag
+                        PropertyChanges {
+                            target: exportRect
+                            color: "blue"
+                        }
+                    }
+                ]
+            }
+        }// END_OF( assetExportArea )
+
+        Rectangle {
+            id: dragObject
+
+            property var itemIndex: null
+            property alias text: textObj.text
+
+            color: "transparent"
+            border.color: "white"
+            border.width: 2
+            width: 150
+            height: 25
+            radius: 1
+            x: treeViewMousePad.mouseX - (dragObject.width / 2);
+            y: treeViewMousePad.mouseY - (dragObject.height / 2);
+            z: 200 //hopefully always on top
+            visible: false
+
+            Drag.active: treeViewMousePad.drag.active
+            Drag.keys: [ "AssetServer_AddToWorld" ]
+            //Drag.hotSpot.x: dragObject.width / 2
+            //Drag.hotSpot.y: dragObject.height / 2
+
+            function reset() {
+                visible = false;
+                itemIndex = null;
+                text = "";
+            }
+
+            function setDragInfo(selectedIndex) {
+                var url = assetProxyModel.data(selectedIndex, 0x103);
+                if (!url) {
+                    console.log( "AssetServer.qml - dragObj::setDragInfo - URL Fail");
+                    return false;
+                }
+
+                var filename = url.slice(url.lastIndexOf('/') + 1);
+                if (filename.length == 0) {
+                    console.log( "AssetServer.qml - dragObj::setDragInfo - Filename Fail");
+                    return false;
+                }
+                    
+                console.log( "AssetServer.qml - dragObj::setDragInfo - Current Selection is: " + filename + "(" + url + ")" );
+
+                var isViableFileType = canAddToWorld(assetProxyModel.data(selectedIndex, 0x100));
+                if (!isViableFileType) {
+                    console.log( "AssetServer.qml - dragObj::setDragInfo - Non-viable FileType.  Only fbx & obj file types are supported.");
+                    return false;
+                }
+
+                visible = true;
+                itemIndex = selectedIndex;
+                text = filename;
+
+                return true;
+            }
+
+            Text {
+                id: textObj
+                width: dragObject.width
+                height: dragObject.height
+                color: "white"
+            }
+        }//END_OF( dragObject )
 
         Row {
             id: infoRow
