@@ -8,6 +8,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+import QtQml.Models 2.2
 import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Controls.Styles 1.4
@@ -705,7 +706,7 @@ ScrollingWindow {
                         }
                     }
                 }
-            }
+            }// END_OF( itemDelegateLoader )
 
             Rectangle {
                 id: treeLabelToolTip
@@ -742,22 +743,39 @@ ScrollingWindow {
                     showTimer.stop();
                     treeLabelToolTip.visible = false;
                 }
-            }
+            }// END_OF( treeLabelToolTip )
             
             MouseArea {
+                id: treeViewMousePad
                 propagateComposedEvents: true
                 anchors.fill: parent
-                acceptedButtons: Qt.RightButton
+                acceptedButtons: Qt.RightButton | Qt.LeftButton
                 onClicked: {
-                    if (!HMD.active) {  // Popup only displays properly on desktop
+                    if (!HMD.active && (mouse.button === Qt.RightButton)) {  // Popup only displays properly on desktop
                         var index = treeView.indexAt(mouse.x, mouse.y);
                         treeView.selection.setCurrentIndex(index, 0x0002);
                         contextMenu.currentIndex = index;
                         contextMenu.popup();
+                    } else if ( mouse.button === Qt.LeftButton ) {
+                        var numDirs = treeView.branchModelIndices.length;
+                        var index = treeView.indexAt(mouse.x, mouse.y);
+                        for (var branchIndex = 0; branchIndex < numDirs; ++branchIndex) {
+                            if (index != treeView.branchModelIndices[ branchIndex ]) {
+                                continue;
+                            }
+
+                            console.log("AssetServer.qml - onClicked - Branch Screening: Match Found at arrIndex: " + branchIndex);
+                            mouse.accepted = false;
+                            break;
+                        }
+
+                        if ( mouse.accepted === true ) {
+                            treeView.selection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect);
+                        }
                     }
                 }
-            }
-                
+            }// END_OF( treeViewMousePad )
+
             Menu {
                 id: contextMenu
                 title: "Edit"
@@ -784,8 +802,14 @@ ScrollingWindow {
                         deleteFile(contextMenu.currentIndex);
                     }
                 }
+            }// END_OF( contextMenu )
+
+            onSelectedFile: {
+                var url = assetProxyModel.data(treeView.selection.currentIndex, 0x103);
+                var filename = url.slice(url.lastIndexOf('/') + 1);
+                console.log("AssetServer.qml - treeView::onSelectedFile - Current Selection is: " + filename + "(" + url + ")");
             }
-        }
+        }// END_OF( treeView )
 
         Row {
             id: infoRow

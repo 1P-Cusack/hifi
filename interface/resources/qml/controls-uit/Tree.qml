@@ -255,6 +255,11 @@ TreeView {
         }
     }
 
+    onPressAndHold: {
+        var isCurrentSelection = (index == selectionModel.currentIndex);
+        console.log("Tree.qml - onPressAndHold - Triggered on currentIndex: " + isCurrentSelection);
+    }
+
     onExpanded: {
         console.log("Tree.qml - onExpanded - Triggered");
     }
