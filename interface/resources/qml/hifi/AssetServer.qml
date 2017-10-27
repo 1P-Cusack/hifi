@@ -747,12 +747,12 @@ ScrollingWindow {
             
             MouseArea {
                 id: treeViewMousePad
-                property bool releasedInMousePad: false
 
                 propagateComposedEvents: true
                 anchors.fill: parent
                 acceptedButtons: Qt.RightButton
                 //acceptedButtons: Qt.RightButton | Qt.LeftButton
+
                 onClicked: {
                     if (!HMD.active /*&& (mouse.button === Qt.RightButton)*/) {  // Popup only displays properly on desktop
                         var index = treeView.indexAt(mouse.x, mouse.y);
@@ -787,21 +787,27 @@ ScrollingWindow {
 
                 onEntered: {
                     console.log("AssetServer.qml - treeViewMousePad::onEntered");
-                    releasedInMousePad = true;
-                    assetBrowseArea.state = "inCommonArea";
-                    assetExportArea.state = "inCommonArea";
                 }
 
                 onExited: {
                     console.log("AssetServer.qml - treeViewMousePad::onExited");
-                    releasedInMousePad = false;
                 }
 
                 onReleased: {
                     console.log("AssetServer.qml - treeViewMousePad::onRelease - Triggered");
-                    if ((drag.target !== null) && releasedInMousePad) {
-                        console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to clear drag selection.");
-                        treeView.clearDrag();
+                    console.log("AssetServer.qml - assetExportArea.state is: " + assetExportArea.state);
+                    console.log("AssetServer.qml - assetBrowseArea.state is: " + assetBrowseArea.state);
+                    if ((drag.target !== null)) {
+                        //if ( hasMousePress() ) {
+                        //if (assetBrowseArea.isExportBlocked()) {
+                        //    console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to clear drag selection.");
+                        //    treeView.clearDrag();
+                        //} else if (assetExportArea.containsDrag) {
+                        if (mouse.wasHeld && (assetExportArea.state === "inExportArea")) {
+                            console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to trigger drop action.");
+                            drag.target.Drag.drop();
+                            treeView.clearDrag();
+                        }
                     }
                 }
             }// END_OF( treeViewMousePad )
@@ -837,11 +843,8 @@ ScrollingWindow {
             function markIndexForDrag(curSelectionIndex) {
                 if (dragObject.setDragInfo(curSelectionIndex)) {
                     treeViewMousePad.drag.target = dragObject;
-                    dragObject.x = Qt.binding(function() { return treeViewMousePad.mouseX - (dragObject.width / 2) });
-                    dragObject.y = Qt.binding(function() { return treeViewMousePad.mouseY - (dragObject.height / 2) });
                 } else if (dragObject.visible) {
-                    treeViewMousePad.drag.target = null;
-                    dragObject.visible = false;
+                    clearDrag();
                 }
             }
 
@@ -857,46 +860,66 @@ ScrollingWindow {
 
         DropArea {
             id: assetBrowseArea
+
+            property alias state: browseRect.state
+            property bool debugState: false
+
+            parent: root
             width: root.width
             height: root.height
+            keys: ["AssetServer_AddToWorld"]
+
+            function isExportBlocked() {
+                return (assetBrowseArea.containsDrag || treeViewMousePad.containsMouse);
+            }
+
+            onDropped: {
+                console.log("AssetServer.qml - assetBrowseArea::onDropped(UNEXPECTED) triggered from " + drop.source.name + " with key: " + drop.keys[0]);
+            }
+
+            onEntered: {
+                console.log("AssetServer.qml - assetBrowseArea::onEntered");
+            }
+
+            onExited: {
+                console.log("AssetServer.qml - assetBrowseArea::onExited");
+            }
 
             Rectangle {
                 id: browseRect
+
                 anchors.fill: parent
                 color: "transparent"
 
                 states: [
                     State {
                         name: "inCommonArea"
-                        when: assetExportArea.containsDrag && assetBrowseArea.containsDrag
+                        when: isExportBlocked()
                         PropertyChanges {
                             target: browseRect
-                            color: "red"
-                        }
-                    },
-
-                    State {
-                        name: "inBrowseArea"
-                        when: !assetExportArea.containsDrag && assetBrowseArea.containsDrag
-                        PropertyChanges {
-                            target: browseRect
-                            color: "blue"
+                            color: "green"
                         }
                     }
                 ]
             }
-        }// END_OF( assetBrowseArea )
+
+        }//END_OF( assetBrowseArea )
 
         DropArea {
             id: assetExportArea
+
+            property alias state: exportRect.state
+
             parent: root.parent
             keys: [ "AssetServer_AddToWorld" ]
             width: root.parent.width
             height: root.parent.height
 
             onDropped: {
-                console.log("AssetServer.qml - assetExportArea::onDropped");
+                console.log("AssetServer.qml - assetExportArea::onDropped triggered from " + drop.source.name + " with key: " + drop.keys[0]);
                 //addToWorld();
+                // get dropped data then addToWorld based on that.
+                // In the event of an error what should happen?
             }
 
             onEntered: {
@@ -909,13 +932,14 @@ ScrollingWindow {
         
             Rectangle {
                 id: exportRect
+
                 anchors.fill: parent
                 color: "yellow"
 
                 states: [
                     State {
                         name: "inCommonArea"
-                        when: assetExportArea.containsDrag && assetBrowseArea.containsDrag
+                        when: assetBrowseArea.isExportBlocked()
                         PropertyChanges {
                             target: exportRect
                             color: "green"
@@ -924,7 +948,7 @@ ScrollingWindow {
 
                     State {
                         name: "inExportArea"
-                        when: assetExportArea.containsDrag && !assetBrowseArea.containsDrag
+                        when: assetExportArea.containsDrag
                         PropertyChanges {
                             target: exportRect
                             color: "blue"
@@ -937,6 +961,7 @@ ScrollingWindow {
         Rectangle {
             id: dragObject
 
+            property string name: "dragRect"
             property var itemIndex: null
             property alias text: textObj.text
 
@@ -948,13 +973,12 @@ ScrollingWindow {
             radius: 1
             x: treeViewMousePad.mouseX - (dragObject.width / 2);
             y: treeViewMousePad.mouseY - (dragObject.height / 2);
-            z: 200 //hopefully always on top
             visible: false
 
             Drag.active: treeViewMousePad.drag.active
             Drag.keys: [ "AssetServer_AddToWorld" ]
-            //Drag.hotSpot.x: dragObject.width / 2
-            //Drag.hotSpot.y: dragObject.height / 2
+            Drag.hotSpot.x: dragObject.width / 2
+            Drag.hotSpot.y: dragObject.height / 2
 
             function reset() {
                 visible = false;
@@ -970,7 +994,7 @@ ScrollingWindow {
                 }
 
                 var filename = url.slice(url.lastIndexOf('/') + 1);
-                if (filename.length == 0) {
+                if (filename.length === 0) {
                     console.log( "AssetServer.qml - dragObj::setDragInfo - Filename Fail");
                     return false;
                 }
@@ -984,6 +1008,8 @@ ScrollingWindow {
                 }
 
                 visible = true;
+                x = Qt.binding(function() { return treeViewMousePad.mouseX - (dragObject.width / 2) });
+                y = Qt.binding(function() { return treeViewMousePad.mouseY - (dragObject.height / 2) });
                 itemIndex = selectedIndex;
                 text = filename;
 
