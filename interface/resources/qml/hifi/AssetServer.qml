@@ -19,6 +19,7 @@ import "../styles-uit"
 import "../controls-uit" as HifiControls
 import "../windows"
 import "../dialogs"
+import "../js/AssetServerQMLUtils.js" as ExportUtils
 
 ScrollingWindow {
     id: root
@@ -176,6 +177,23 @@ ScrollingWindow {
         errorMessageBox("There was a problem retrieving the list of assets from your Asset Server.\n" + errorString);
     }
 
+    function helperFuncExport(assetName, assetURL, shapeType, isDynamic) {
+        if (isDynamic && (shapeType === "static-mesh")) {
+            print("Error: model cannot be both static mesh and dynamic.  This should never happen.");
+        }
+
+        var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
+        // @note: For dynamic entities create a vector <0, -10, 0>.  { x: 0, y: -10, z: 0 } won't work because this is a
+        // different scripting engine from QTScript.
+        var gravityScalar = (isDynamic ? 10 : 0);
+        var gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), gravityScalar);
+
+        print("Asset Browser - adding asset " + assetURL + " (" + assetName + ") to world.");
+
+        // Entities.addEntity doesn't work from QML, so we use this.
+        Entities.addModelEntity(assetName, assetURL, shapeType, isDynamic, addPosition, gravity);
+    }
+
     function addToWorld() {
         var defaultURL = assetProxyModel.data(treeView.selection.currentIndex, 0x103);
 
@@ -183,25 +201,6 @@ ScrollingWindow {
             return;
         }
 
-        var SHAPE_TYPE_NONE = 0;
-        var SHAPE_TYPE_SIMPLE_HULL = 1;
-        var SHAPE_TYPE_SIMPLE_COMPOUND = 2;
-        var SHAPE_TYPE_STATIC_MESH = 3;
-        var SHAPE_TYPE_BOX = 4;
-        var SHAPE_TYPE_SPHERE = 5;
-        
-        var SHAPE_TYPES = [];
-        SHAPE_TYPES[SHAPE_TYPE_NONE] = "No Collision";
-        SHAPE_TYPES[SHAPE_TYPE_SIMPLE_HULL] = "Basic - Whole model";
-        SHAPE_TYPES[SHAPE_TYPE_SIMPLE_COMPOUND] = "Good - Sub-meshes";
-        SHAPE_TYPES[SHAPE_TYPE_STATIC_MESH] = "Exact - All polygons";
-        SHAPE_TYPES[SHAPE_TYPE_BOX] = "Box";
-        SHAPE_TYPES[SHAPE_TYPE_SPHERE] = "Sphere";
-        
-        // @note:  If these defaults change, be sure to update exportIndexToWorld
-        //       accordingly.
-        var SHAPE_TYPE_DEFAULT = SHAPE_TYPE_STATIC_MESH;
-        var DYNAMIC_DEFAULT = false;
         var prompt = desktop.customInputDialog({
             textInput: {
                 label: "Model URL",
@@ -209,14 +208,14 @@ ScrollingWindow {
             },
             comboBox: {
                 label: "Automatic Collisions",
-                index: SHAPE_TYPE_DEFAULT,
-                items: SHAPE_TYPES
+                index: ExportUtils.SHAPE_TYPE_DEFAULT,
+                items: ExportUtils.COLLISION_TYPES
             },
             checkBox: {
                 label: "Dynamic",
-                checked: DYNAMIC_DEFAULT,
+                checked: ExportUtils.DYNAMIC_DEFAULT,
                 disableForItems: [
-                    SHAPE_TYPE_STATIC_MESH
+                    ExportUtils.SHAPE_TYPE_STATIC_MESH
                 ],
                 checkStateOnDisable: false,
                 warningOnDisable: "Models with 'Exact' automatic collisions cannot be dynamic, and should not be used as floors"
@@ -227,47 +226,17 @@ ScrollingWindow {
             if (jsonResult) {
                 var result = JSON.parse(jsonResult);
                 var url = result.textInput.trim();
-                var shapeType;
-                switch (result.comboBox) {
-                    case SHAPE_TYPE_SIMPLE_HULL:
-                        shapeType = "simple-hull";
-                        break;
-                    case SHAPE_TYPE_SIMPLE_COMPOUND:
-                        shapeType = "simple-compound";
-                        break;
-                    case SHAPE_TYPE_STATIC_MESH:
-                        shapeType = "static-mesh";
-                        break;
-                    case SHAPE_TYPE_BOX:
-                        shapeType = "box";
-                        break;
-                    case SHAPE_TYPE_SPHERE:
-                        shapeType = "sphere";
-                        break;
-                    default:
-                        shapeType = "none";
-                }
+                var shapeType = ExportUtils.getShapeType(result.comboBox);
 
-                var dynamic = result.checkBox !== null ? result.checkBox : DYNAMIC_DEFAULT;
+                var dynamic = result.checkBox !== null ? result.checkBox : ExportUtils.DYNAMIC_DEFAULT;
                 if (shapeType === "static-mesh" && dynamic) {
                     // The prompt should prevent this case
                     print("Error: model cannot be both static mesh and dynamic.  This should never happen.");
                 } else if (url) {
                     var name = assetProxyModel.data(treeView.selection.currentIndex);
-                    var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
-                    var gravity;
-                    if (dynamic) {
-                        // Create a vector <0, -10, 0>.  { x: 0, y: -10, z: 0 } won't work because Qt is dumb and this is a
-                        // different scripting engine from QTScript.
-                        gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 10);
-                    } else {
-                        gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 0);
-                    }
+                    print("Asset Browser - addToWorld - Adding asset " + url + " (" + name + ") to world.");
 
-                    print("Asset browser - adding asset " + url + " (" + name + ") to world.");
-
-                    // Entities.addEntity doesn't work from QML, so we use this.
-                    Entities.addModelEntity(name, url, shapeType, dynamic, addPosition, gravity);
+                    helperFuncExport(name, url, shapeType, dynamic);
                 }
             }
         });
@@ -279,18 +248,15 @@ ScrollingWindow {
             return;
         }
 
-        // Case 7734 requests that the defaults according to addToWorld be auto selected.
-        //      This means the shapeType is to be static mesh which can't be dynamic
-        var shapeType = "static-mesh";
-        var isDynamic = false;
-        var gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 0);
-        var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
+        // FogBugz Case 7734 requests that the defaults according to addToWorld be auto selected.
+        //      when exporting items via this method.
+        var shapeType = ExportUtils.getDefaultShape();
+        var isDynamic = ExportUtils.DYNAMIC_DEFAULT;
         var assetName = assetProxyModel.data(treeViewIndex);
        
         print("Asset Browser - exportIndexToWorld - Adding asset " + assetURL + " (" + assetName + ") to world.");
 
-        // Entities.addEntity doesn't work from QML, so we use this.
-        Entities.addModelEntity(assetName, assetURL, shapeType, isDynamic, addPosition, gravity);
+        helperFuncExport(assetName, assetURL, shapeType, isDynamic);
     }
 
     function copyURLToClipboard(index) {
