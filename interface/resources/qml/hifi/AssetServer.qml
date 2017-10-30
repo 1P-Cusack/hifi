@@ -780,8 +780,13 @@ ScrollingWindow {
                 onPressAndHold: {
                     console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Triggered");
                     if (drag.target == null) {
+                        var index = treeView.indexAt(mouse.x, mouse.y);
+                        if ( index !== treeView.currentIndex ) {
+                            console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Hold not triggered on current index.");
+                            treeView.selection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect);
+                        }
                         console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Attempting to mark held selection.");
-                        treeView.markIndexForDrag(treeView.currentIndex);
+                        treeView.markIndexForDrag(index);
                     }
                 }
 
@@ -797,17 +802,23 @@ ScrollingWindow {
                     console.log("AssetServer.qml - treeViewMousePad::onRelease - Triggered");
                     console.log("AssetServer.qml - assetExportArea.state is: " + assetExportArea.state);
                     console.log("AssetServer.qml - assetBrowseArea.state is: " + assetBrowseArea.state);
+                    if (!mouse.wasHeld) {
+                        //--EARLY EXIT--( no need to go farther )
+                        return;
+                    }
+
                     if ((drag.target !== null)) {
                         //if ( hasMousePress() ) {
                         //if (assetBrowseArea.isExportBlocked()) {
                         //    console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to clear drag selection.");
                         //    treeView.clearDrag();
                         //} else if (assetExportArea.containsDrag) {
-                        if (mouse.wasHeld && (assetExportArea.state === "inExportArea")) {
+                        if (assetExportArea.state === "inExportArea") {
                             console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to trigger drop action.");
                             drag.target.Drag.drop();
-                            treeView.clearDrag();
                         }
+
+                        treeView.clearDrag();
                     }
                 }
             }// END_OF( treeViewMousePad )
@@ -843,7 +854,7 @@ ScrollingWindow {
             function markIndexForDrag(curSelectionIndex) {
                 if (dragObject.setDragInfo(curSelectionIndex)) {
                     treeViewMousePad.drag.target = dragObject;
-                } else if (dragObject.visible) {
+                } else { //clear out data on the event of a failure to mark
                     clearDrag();
                 }
             }
@@ -965,20 +976,22 @@ ScrollingWindow {
             property var itemIndex: null
             property alias text: textObj.text
 
+            parent: treeViewMousePad
             color: "transparent"
             border.color: "white"
             border.width: 2
             width: 150
             height: 25
             radius: 1
-            x: treeViewMousePad.mouseX - (dragObject.width / 2);
-            y: treeViewMousePad.mouseY - (dragObject.height / 2);
+            x: calcPosX()
+            y: calcPosY()
             visible: false
 
             Drag.active: treeViewMousePad.drag.active
             Drag.keys: [ "AssetServer_AddToWorld" ]
-            Drag.hotSpot.x: dragObject.width / 2
-            Drag.hotSpot.y: dragObject.height / 2
+
+            function calcPosX() { return (treeViewMousePad.mouseX - (dragObject.width / 2)); }
+            function calcPosY() { return (treeViewMousePad.mouseY - dragObject.height); }
 
             function reset() {
                 visible = false;
@@ -1008,8 +1021,8 @@ ScrollingWindow {
                 }
 
                 visible = true;
-                x = Qt.binding(function() { return treeViewMousePad.mouseX - (dragObject.width / 2) });
-                y = Qt.binding(function() { return treeViewMousePad.mouseY - (dragObject.height / 2) });
+                x = Qt.binding( function() { return dragObject.calcPosX(); } );
+                y = Qt.binding( function() { return dragObject.calcPosY(); } );
                 itemIndex = selectedIndex;
                 text = filename;
 
