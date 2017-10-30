@@ -198,6 +198,8 @@ ScrollingWindow {
         SHAPE_TYPES[SHAPE_TYPE_BOX] = "Box";
         SHAPE_TYPES[SHAPE_TYPE_SPHERE] = "Sphere";
         
+        // @note:  If these defaults change, be sure to update exportIndexToWorld
+        //       accordingly.
         var SHAPE_TYPE_DEFAULT = SHAPE_TYPE_STATIC_MESH;
         var DYNAMIC_DEFAULT = false;
         var prompt = desktop.customInputDialog({
@@ -269,6 +271,26 @@ ScrollingWindow {
                 }
             }
         });
+    }
+
+    function exportIndexToWorld(treeViewIndex) {
+        var assetURL = assetProxyModel.data(treeViewIndex, 0x103);
+        if (!assetURL || !canAddToWorld(assetURL)) {
+            return;
+        }
+
+        // Case 7734 requests that the defaults according to addToWorld be auto selected.
+        //      This means the shapeType is to be static mesh which can't be dynamic
+        var shapeType = "static-mesh";
+        var isDynamic = false;
+        var gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 0);
+        var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
+        var assetName = assetProxyModel.data(treeViewIndex);
+       
+        print("Asset Browser - exportIndexToWorld - Adding asset " + assetURL + " (" + assetName + ") to world.");
+
+        // Entities.addEntity doesn't work from QML, so we use this.
+        Entities.addModelEntity(assetName, assetURL, shapeType, isDynamic, addPosition, gravity);
     }
 
     function copyURLToClipboard(index) {
@@ -908,7 +930,7 @@ ScrollingWindow {
                         when: isExportBlocked()
                         PropertyChanges {
                             target: browseRect
-                            color: "green"
+                            color: assetBrowseArea.debugState ? "green" : "transparent"
                         }
                     }
                 ]
@@ -920,6 +942,7 @@ ScrollingWindow {
             id: assetExportArea
 
             property alias state: exportRect.state
+            property bool debugState: false;
 
             parent: root.parent
             keys: [ "AssetServer_AddToWorld" ]
@@ -927,10 +950,13 @@ ScrollingWindow {
             height: root.parent.height
 
             onDropped: {
+                if ( (drop.source.itemIndex === null) || (drop.source.itemIndex === undefined)) {
+                    console.log("AssetServer.qml - assetExportArea::onDropped(ERROR) " + drop.source.name + "'s itemIndex is null or undefined.");
+                    return;
+                }
+
                 console.log("AssetServer.qml - assetExportArea::onDropped triggered from " + drop.source.name + " with key: " + drop.keys[0]);
-                //addToWorld();
-                // get dropped data then addToWorld based on that.
-                // In the event of an error what should happen?
+                exportIndexToWorld(drop.source.itemIndex);
             }
 
             onEntered: {
@@ -945,7 +971,7 @@ ScrollingWindow {
                 id: exportRect
 
                 anchors.fill: parent
-                color: "yellow"
+                color: assetExportArea.debugState ? "yellow" : "transparent"
 
                 states: [
                     State {
@@ -953,7 +979,7 @@ ScrollingWindow {
                         when: assetBrowseArea.isExportBlocked()
                         PropertyChanges {
                             target: exportRect
-                            color: "green"
+                            color: assetExportArea.debugState ? "green" : "transparent"
                         }
                     },
 
@@ -962,7 +988,7 @@ ScrollingWindow {
                         when: assetExportArea.containsDrag
                         PropertyChanges {
                             target: exportRect
-                            color: "blue"
+                            color: assetExportArea.debugState ? "blue" : "transparent"
                         }
                     }
                 ]
