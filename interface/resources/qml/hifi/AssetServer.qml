@@ -796,11 +796,6 @@ ScrollingWindow {
                     }
 
                     if ((drag.target !== null)) {
-                        //if ( hasMousePress() ) {
-                        //if (assetBrowseArea.isExportBlocked()) {
-                        //    console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to clear drag selection.");
-                        //    treeView.clearDrag();
-                        //} else if (assetExportArea.containsDrag) {
                         if (assetExportArea.state === "inExportArea") {
                             console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to trigger drop action.");
                             drag.target.Drag.drop();
@@ -861,7 +856,7 @@ ScrollingWindow {
             id: assetExportArea
 
             property alias state: exportRect.state
-            property var debugState: { "colorState": true, "handlers": true }
+            property var debugState: { "colorState": false, "handlers": false }
 
             parent: root.parent
             keys: [ "AssetServer_AddToWorld" ]
@@ -949,7 +944,7 @@ ScrollingWindow {
                 }
 
                 onDropped: {
-                    printLog("AssetServer.qml - assetBrowseArea::onDropped(UNEXPECTED) triggered from " + drop.source.name + " with key: " + drop.keys[0]);
+                    printLog("AssetServer.qml - assetBrowseArea::onDropped(Exclusion Area) triggered from " + drop.source.name + " with key: " + drop.keys[0]);
                 }
 
                 onEntered: {
