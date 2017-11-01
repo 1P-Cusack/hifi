@@ -858,86 +858,49 @@ ScrollingWindow {
         }// END_OF( treeView )
 
         DropArea {
-            id: assetBrowseArea
-
-            property alias state: browseRect.state
-            property bool debugState: false
-
-            parent: root
-            width: root.width
-            height: root.height
-            keys: ["AssetServer_AddToWorld"]
-
-            function isExportBlocked() {
-                return (assetBrowseArea.containsDrag || treeViewMousePad.containsMouse);
-            }
-
-            onDropped: {
-                console.log("AssetServer.qml - assetBrowseArea::onDropped(UNEXPECTED) triggered from " + drop.source.name + " with key: " + drop.keys[0]);
-            }
-
-            onEntered: {
-                console.log("AssetServer.qml - assetBrowseArea::onEntered");
-            }
-
-            onExited: {
-                console.log("AssetServer.qml - assetBrowseArea::onExited");
-            }
-
-            Rectangle {
-                id: browseRect
-
-                anchors.fill: parent
-                color: "transparent"
-
-                states: [
-                    State {
-                        name: "inCommonArea"
-                        when: isExportBlocked()
-                        PropertyChanges {
-                            target: browseRect
-                            color: assetBrowseArea.debugState ? "green" : "transparent"
-                        }
-                    }
-                ]
-            }
-
-        }//END_OF( assetBrowseArea )
-
-        DropArea {
             id: assetExportArea
 
             property alias state: exportRect.state
-            property bool debugState: false;
+            property var debugState: { "colorState": true, "handlers": true }
 
             parent: root.parent
             keys: [ "AssetServer_AddToWorld" ]
             width: root.parent.width
             height: root.parent.height
 
-            onDropped: {
-                if ( (drop.source.itemIndex === null) || (drop.source.itemIndex === undefined)) {
-                    console.log("AssetServer.qml - assetExportArea::onDropped(ERROR) " + drop.source.name + "'s itemIndex is null or undefined.");
+            function printLog(msg) {
+                if (!debugState.handlers) {
                     return;
                 }
 
-                console.log("AssetServer.qml - assetExportArea::onDropped triggered from " + drop.source.name + " with key: " + drop.keys[0]);
+                console.log( msg );
+            }
+
+            onDropped: {
+                if ( (drop.source.itemIndex === null) || (drop.source.itemIndex === undefined)) {
+                    printLog("AssetServer.qml - assetExportArea::onDropped(ERROR) " + drop.source.name + "'s itemIndex is null or undefined.");
+                    return;
+                }
+
+                printLog("AssetServer.qml - assetExportArea::onDropped triggered from " + drop.source.name + " with key: " + drop.keys[0]);
                 exportIndexToWorld(drop.source.itemIndex);
             }
 
             onEntered: {
-                console.log("AssetServer.qml - assetExportArea::onEntered");
+                printLog("AssetServer.qml - assetExportArea::onEntered");
             }
 
             onExited: {
-                console.log("AssetServer.qml - assetExportArea::onExited");
+                printLog("AssetServer.qml - assetExportArea::onExited");
             }
         
             Rectangle {
                 id: exportRect
 
+                property alias debugState: assetExportArea.debugState
+
                 anchors.fill: parent
-                color: assetExportArea.debugState ? "yellow" : "transparent"
+                color: debugState.colorState ? "yellow" : "transparent"
 
                 states: [
                     State {
@@ -945,7 +908,7 @@ ScrollingWindow {
                         when: assetBrowseArea.isExportBlocked()
                         PropertyChanges {
                             target: exportRect
-                            color: assetExportArea.debugState ? "green" : "transparent"
+                            color: debugState.colorState ? "green" : "transparent"
                         }
                     },
 
@@ -954,11 +917,71 @@ ScrollingWindow {
                         when: assetExportArea.containsDrag
                         PropertyChanges {
                             target: exportRect
-                            color: assetExportArea.debugState ? "blue" : "transparent"
+                            color: debugState.colorState ? "blue" : "transparent"
                         }
                     }
                 ]
-            }
+            }//END_OF( exportRect )
+
+            DropArea {
+                id: assetBrowseArea
+
+                property alias state: browseRect.state
+                property var debugState: assetExportArea.debugState
+
+                parent: assetExportArea
+                x: root.x
+                y: root.y
+                width: root.width
+                height: root.height
+                keys: ["AssetServer_AddToWorld"]
+
+                function printLog(msg) {
+                    if (!debugState.handlers) {
+                        return;
+                    }
+
+                    console.log( msg );
+                }
+
+                function isExportBlocked() {
+                    return (assetBrowseArea.containsDrag || treeViewMousePad.containsMouse);
+                }
+
+                onDropped: {
+                    printLog("AssetServer.qml - assetBrowseArea::onDropped(UNEXPECTED) triggered from " + drop.source.name + " with key: " + drop.keys[0]);
+                }
+
+                onEntered: {
+                    printLog("AssetServer.qml - assetBrowseArea::onEntered");
+                }
+
+                onExited: {
+                    printLog("AssetServer.qml - assetBrowseArea::onExited");
+                }
+
+                Rectangle {
+                    id: browseRect
+
+                    property alias debugState: assetBrowseArea.debugState
+
+                    anchors.fill: parent
+                    color: debugState.colorState ? "red" : "transparent"
+
+
+                    states: [
+                        State {
+                            name: "inCommonArea"
+                            when: isExportBlocked()
+                            PropertyChanges {
+                                target: browseRect
+                                color: debugState.colorState ? "green" : "transparent"
+                            }
+                        }
+                    ]
+                }
+            }//END_OF( assetBrowseArea )
+
         }// END_OF( assetExportArea )
 
         Rectangle {
