@@ -987,18 +987,18 @@ ScrollingWindow {
             property alias text: textObj.text
 
             parent: treeViewMousePad
-            color: "transparent"
-            border.color: "white"
+            color: (colorScheme === hifi.colorSchemes.light) ? hifi.colors.tableRowLightOdd : hifi.colors.tableRowDarkOdd
+            border.color: (colorScheme === hifi.colorSchemes.light) ? hifi.colors.black : hifi.colors.lightGrayText
             border.width: 2
-            width: 150
-            height: 25
+            width: textObj.width + 2 * hifi.dimensions.textPadding
+            height: hifi.dimensions.tableRowHeight
             radius: 1
             x: calcPosX()
             y: calcPosY()
             visible: false
 
             Drag.active: treeViewMousePad.drag.active
-            Drag.keys: [ "AssetServer_AddToWorld" ]
+            Drag.keys: ["AssetServer_AddToWorld"]
 
             function calcPosX() { return (treeViewMousePad.mouseX - (dragObject.width / 2)); }
             function calcPosY() { return (treeViewMousePad.mouseY - dragObject.height); }
@@ -1039,11 +1039,12 @@ ScrollingWindow {
                 return true;
             }
 
-            Text {
+            FiraSansSemiBold {
                 id: textObj
-                width: dragObject.width
-                height: dragObject.height
-                color: "white"
+
+                anchors.centerIn: parent
+                size: hifi.fontSizes.tableText
+                color: (colorScheme === hifi.colorSchemes.light) ? hifi.colors.black : hifi.colors.lightGrayText
             }
         }//END_OF( dragObject )
 
