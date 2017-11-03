@@ -986,7 +986,6 @@ ScrollingWindow {
             property var itemIndex: null
             property alias text: textObj.text
 
-            parent: treeViewMousePad
             color: (colorScheme === hifi.colorSchemes.light) ? hifi.colors.tableRowLightOdd : hifi.colors.tableRowDarkOdd
             border.color: (colorScheme === hifi.colorSchemes.light) ? hifi.colors.black : hifi.colors.lightGrayText
             border.width: 2
@@ -995,13 +994,14 @@ ScrollingWindow {
             radius: 1
             x: calcPosX()
             y: calcPosY()
+            z: 2500 //< This should draw over anything in the window when active.
             visible: false
 
             Drag.active: treeViewMousePad.drag.active
             Drag.keys: ["AssetServer_AddToWorld"]
 
-            function calcPosX() { return (treeViewMousePad.mouseX - (dragObject.width / 2)); }
-            function calcPosY() { return (treeViewMousePad.mouseY - dragObject.height); }
+            function calcPosX() { return treeViewMousePad.mouseX + treeView.x - (dragObject.width/2); }
+            function calcPosY() { return treeViewMousePad.mouseY + treeView.y - dragObject.height; }
 
             function reset() {
                 visible = false;
