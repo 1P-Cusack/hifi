@@ -17,6 +17,7 @@ import Qt.labs.settings 1.0
 import "../../styles-uit"
 import "../../controls-uit" as HifiControls
 import "../../windows"
+import "../js/AssetServerQMLUtils.js" as ExportUtils
 import ".."
 
 Rectangle {
@@ -66,7 +67,7 @@ Rectangle {
         letterboxMessage.visible = true;
         letterboxMessage.popupRadius = 0;
     }
-    
+
     function errorMessageBox(message) {
         return tabletRoot.messageBox({
             icon: hifi.icons.warning,
@@ -175,6 +176,23 @@ Rectangle {
         errorMessageBox("There was a problem retrieving the list of assets from your Asset Server.\n" + errorString);
     }
 
+    function helperFuncExport(assetName, assetURL, shapeType, isDynamic) {
+        if (isDynamic && (shapeType === "static-mesh")) {
+            print("Error: model cannot be both static mesh and dynamic.  This should never happen.");
+        }
+
+        var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
+        // @note: For dynamic entities create a vector <0, -10, 0>.  { x: 0, y: -10, z: 0 } won't work because this is a
+        // different scripting engine from QTScript.
+        var gravityScalar = (isDynamic ? 10 : 0);
+        var gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), gravityScalar);
+
+        print("Asset Browser - adding asset " + assetURL + " (" + assetName + ") to world.");
+
+        // Entities.addEntity doesn't work from QML, so we use this.
+        Entities.addModelEntity(assetName, assetURL, shapeType, isDynamic, addPosition, gravity);
+    }
+
     function addToWorld() {
         var defaultURL = assetProxyModel.data(treeView.selection.currentIndex, 0x103);
 
@@ -182,23 +200,6 @@ Rectangle {
             return;
         }
 
-        var SHAPE_TYPE_NONE = 0;
-        var SHAPE_TYPE_SIMPLE_HULL = 1;
-        var SHAPE_TYPE_SIMPLE_COMPOUND = 2;
-        var SHAPE_TYPE_STATIC_MESH = 3;
-        var SHAPE_TYPE_BOX = 4;
-        var SHAPE_TYPE_SPHERE = 5;
-        
-        var SHAPE_TYPES = [];
-        SHAPE_TYPES[SHAPE_TYPE_NONE] = "No Collision";
-        SHAPE_TYPES[SHAPE_TYPE_SIMPLE_HULL] = "Basic - Whole model";
-        SHAPE_TYPES[SHAPE_TYPE_SIMPLE_COMPOUND] = "Good - Sub-meshes";
-        SHAPE_TYPES[SHAPE_TYPE_STATIC_MESH] = "Exact - All polygons";
-        SHAPE_TYPES[SHAPE_TYPE_BOX] = "Box";
-        SHAPE_TYPES[SHAPE_TYPE_SPHERE] = "Sphere";
-        
-        var SHAPE_TYPE_DEFAULT = SHAPE_TYPE_STATIC_MESH;
-        var DYNAMIC_DEFAULT = false;
         var prompt = tabletRoot.customInputDialog({
             textInput: {
                 label: "Model URL",
@@ -206,14 +207,14 @@ Rectangle {
             },
             comboBox: {
                 label: "Automatic Collisions",
-                index: SHAPE_TYPE_DEFAULT,
-                items: SHAPE_TYPES
+                index: ExportUtils.SHAPE_TYPE_DEFAULT,
+                items: ExportUtils.COLLISION_TYPES
             },
             checkBox: {
                 label: "Dynamic",
-                checked: DYNAMIC_DEFAULT,
+                checked: ExportUtils.DYNAMIC_DEFAULT,
                 disableForItems: [
-                    SHAPE_TYPE_STATIC_MESH
+                    ExportUtils.SHAPE_TYPE_STATIC_MESH
                 ],
                 checkStateOnDisable: false,
                 warningOnDisable: "Models with 'Exact' automatic collisions cannot be dynamic, and should not be used as floors"
@@ -224,50 +225,37 @@ Rectangle {
             if (jsonResult) {
                 var result = JSON.parse(jsonResult);
                 var url = result.textInput.trim();
-                var shapeType;
-                switch (result.comboBox) {
-                    case SHAPE_TYPE_SIMPLE_HULL:
-                        shapeType = "simple-hull";
-                        break;
-                    case SHAPE_TYPE_SIMPLE_COMPOUND:
-                        shapeType = "simple-compound";
-                        break;
-                    case SHAPE_TYPE_STATIC_MESH:
-                        shapeType = "static-mesh";
-                        break;
-                    case SHAPE_TYPE_BOX:
-                        shapeType = "box";
-                        break;
-                    case SHAPE_TYPE_SPHERE:
-                        shapeType = "sphere";
-                        break;
-                    default:
-                        shapeType = "none";
-                }
+                var shapeType = ExportUtils.getShapeType(result.comboBox);
 
-                var dynamic = result.checkBox !== null ? result.checkBox : DYNAMIC_DEFAULT;
+                var dynamic = result.checkBox !== null ? result.checkBox : ExportUtils.DYNAMIC_DEFAULT;
                 if (shapeType === "static-mesh" && dynamic) {
                     // The prompt should prevent this case
                     print("Error: model cannot be both static mesh and dynamic.  This should never happen.");
                 } else if (url) {
                     var name = assetProxyModel.data(treeView.selection.currentIndex);
-                    var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
-                    var gravity;
-                    if (dynamic) {
-                        // Create a vector <0, -10, 0>.  { x: 0, y: -10, z: 0 } won't work because Qt is dumb and this is a
-                        // different scripting engine from QTScript.
-                        gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 10);
-                    } else {
-                        gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 0);
-                    }
+                    print("Asset Browser - addToWorld - Adding asset " + url + " (" + name + ") to world.");
 
-                    print("Asset browser - adding asset " + url + " (" + name + ") to world.");
-
-                    // Entities.addEntity doesn't work from QML, so we use this.
-                    Entities.addModelEntity(name, url, shapeType, dynamic, addPosition, gravity);
+                    helperFuncExport(name, url, shapeType, dynamic);
                 }
             }
         });
+    }
+
+    function exportIndexToWorld(treeViewIndex) {
+        var assetURL = assetProxyModel.data(treeViewIndex, 0x103);
+        if (!assetURL || !canAddToWorld(assetURL)) {
+            return;
+        }
+
+        // FogBugz Case 7734 requests that the defaults according to addToWorld be auto selected.
+        //      when exporting items via this method.
+        var shapeType = ExportUtils.getDefaultShape();
+        var isDynamic = ExportUtils.DYNAMIC_DEFAULT;
+        var assetName = assetProxyModel.data(treeViewIndex);
+       
+        print("Asset Browser - exportIndexToWorld - Adding asset " + assetURL + " (" + assetName + ") to world.");
+
+        helperFuncExport(assetName, assetURL, shapeType, isDynamic);
     }
 
     function copyURLToClipboard(index) {
@@ -340,7 +328,7 @@ Rectangle {
             for (var i = 0; i < selectedItems; i++) {
                  treeView.selection.setCurrentIndex(treeView.selection.selectedIndexes[i], 0x100);
                  index = treeView.selection.currentIndex;
-                 path[i] = assetProxyModel.data(index, 0x100);                  
+                 path[i] = assetProxyModel.data(index, 0x100);
             }
         }
         
@@ -386,6 +374,7 @@ Rectangle {
     Timer {
         id: timer
     }
+
     function uploadClicked(fileUrl) {
         if (uploadOpen) {
             return;
@@ -624,7 +613,7 @@ Rectangle {
                         color: colorScheme == hifi.colorSchemes.light
                                 ? (styleData.selected ? hifi.colors.black : hifi.colors.baseGrayHighlight)
                                 : (styleData.selected ? hifi.colors.black : hifi.colors.lightGrayText)
-                       
+
                         elide: Text.ElideRight
                         horizontalAlignment: TextInput.AlignHCenter
 
@@ -693,7 +682,7 @@ Rectangle {
                         }
                     }
                 }
-            }
+            }// END_OF( itemDelegateLoader )
 
             Rectangle {
                 id: treeLabelToolTip
@@ -730,12 +719,15 @@ Rectangle {
                     showTimer.stop();
                     treeLabelToolTip.visible = false;
                 }
-            }
+            }// END_OF( treeLabelToolTip )
             
             MouseArea {
+                id: treeViewMousePad
+
                 propagateComposedEvents: true
                 anchors.fill: parent
                 acceptedButtons: Qt.RightButton
+
                 onClicked: {
                     if (!HMD.active) {  // Popup only displays properly on desktop
                         var index = treeView.indexAt(mouse.x, mouse.y);
@@ -743,9 +735,48 @@ Rectangle {
                         contextMenu.currentIndex = index;
                         contextMenu.popup();
                     }
+                }//END_OF( treeViewMousePad::onClicked )
+                onPressAndHold: {
+                    console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Triggered");
+                    if (drag.target == null) {
+                        var index = treeView.indexAt(mouse.x, mouse.y);
+                        if ( index !== treeView.currentIndex ) {
+                            console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Hold not triggered on current index.");
+                            treeView.selection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect);
+                        }
+                        console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Attempting to mark held selection.");
+                        treeView.markIndexForDrag(index);
+                    }
                 }
-            }
-                
+
+                onEntered: {
+                    console.log("AssetServer.qml - treeViewMousePad::onEntered");
+                }
+
+                onExited: {
+                    console.log("AssetServer.qml - treeViewMousePad::onExited");
+                }
+
+                onReleased: {
+                    console.log("AssetServer.qml - treeViewMousePad::onRelease - Triggered");
+                    console.log("AssetServer.qml - assetExportArea.state is: " + assetExportArea.state);
+                    console.log("AssetServer.qml - assetBrowseArea.state is: " + assetBrowseArea.state);
+                    if (!mouse.wasHeld) {
+                        //--EARLY EXIT--( no need to go farther )
+                        return;
+                    }
+
+                    if ((drag.target !== null)) {
+                        if (assetExportArea.state === "inExportArea") {
+                            console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to trigger drop action.");
+                            drag.target.Drag.drop();
+                        }
+
+                        treeView.clearDrag();
+                    }
+                }
+            }// END_OF( treeViewMousePad )
+
             Menu {
                 id: contextMenu
                 title: "Edit"
@@ -772,8 +803,217 @@ Rectangle {
                         deleteFile(contextMenu.currentIndex);
                     }
                 }
+            }// END_OF( contextMenu )
+
+            function markIndexForDrag(curSelectionIndex) {
+                if (dragObject.setDragInfo(curSelectionIndex)) {
+                    treeViewMousePad.drag.target = dragObject;
+                } else { //clear out data on the event of a failure to mark
+                    clearDrag();
+                }
             }
-        }
+
+            function clearDrag() {
+                dragObject.reset();
+                treeViewMousePad.drag.target = null;
+            }
+        }// END_OF( treeView )
+
+        DropArea {
+            id: assetExportArea
+
+            property alias state: exportRect.state
+            property var debugState: { "colorState": false, "handlers": false }
+
+            parent: root.parent
+            keys: [ "AssetServer_AddToWorld" ]
+            width: root.parent.width
+            height: root.parent.height
+
+            function printLog(msg) {
+                if (!debugState.handlers) {
+                    return;
+                }
+
+                console.log( msg );
+            }
+
+            onDropped: {
+                if ( (drop.source.itemIndex === null) || (drop.source.itemIndex === undefined)) {
+                    printLog("AssetServer.qml - assetExportArea::onDropped(ERROR) " + drop.source.name + "'s itemIndex is null or undefined.");
+                    return;
+                }
+
+                printLog("AssetServer.qml - assetExportArea::onDropped triggered from " + drop.source.name + " with key: " + drop.keys[0]);
+                exportIndexToWorld(drop.source.itemIndex);
+            }
+
+            onEntered: {
+                printLog("AssetServer.qml - assetExportArea::onEntered");
+            }
+
+            onExited: {
+                printLog("AssetServer.qml - assetExportArea::onExited");
+            }
+        
+            Rectangle {
+                id: exportRect
+
+                property alias debugState: assetExportArea.debugState
+
+                anchors.fill: parent
+                color: debugState.colorState ? "yellow" : "transparent"
+
+                states: [
+                    State {
+                        name: "inCommonArea"
+                        when: assetBrowseArea.isExportBlocked()
+                        PropertyChanges {
+                            target: exportRect
+                            color: debugState.colorState ? "green" : "transparent"
+                        }
+                    },
+
+                    State {
+                        name: "inExportArea"
+                        when: assetExportArea.containsDrag
+                        PropertyChanges {
+                            target: exportRect
+                            color: debugState.colorState ? "blue" : "transparent"
+                        }
+                    }
+                ]
+            }//END_OF( exportRect )
+
+            DropArea {
+                id: assetBrowseArea
+
+                property alias state: browseRect.state
+                property var debugState: assetExportArea.debugState
+
+                parent: assetExportArea
+                x: root.x
+                y: root.y
+                width: root.width
+                height: root.height
+                keys: ["AssetServer_AddToWorld"]
+
+                function printLog(msg) {
+                    if (!debugState.handlers) {
+                        return;
+                    }
+
+                    console.log( msg );
+                }
+
+                function isExportBlocked() {
+                    return (assetBrowseArea.containsDrag || treeViewMousePad.containsMouse);
+                }
+
+                onDropped: {
+                    printLog("AssetServer.qml - assetBrowseArea::onDropped(Exclusion Area) triggered from " + drop.source.name + " with key: " + drop.keys[0]);
+                }
+
+                onEntered: {
+                    printLog("AssetServer.qml - assetBrowseArea::onEntered");
+                }
+
+                onExited: {
+                    printLog("AssetServer.qml - assetBrowseArea::onExited");
+                }
+
+                Rectangle {
+                    id: browseRect
+
+                    property alias debugState: assetBrowseArea.debugState
+
+                    anchors.fill: parent
+                    color: debugState.colorState ? "red" : "transparent"
+
+
+                    states: [
+                        State {
+                            name: "inCommonArea"
+                            when: isExportBlocked()
+                            PropertyChanges {
+                                target: browseRect
+                                color: debugState.colorState ? "green" : "transparent"
+                            }
+                        }
+                    ]
+                }
+            }//END_OF( assetBrowseArea )
+
+        }// END_OF( assetExportArea )
+
+        Rectangle {
+            id: dragObject
+
+            property string name: "dragRect"
+            property var itemIndex: null
+            property alias text: textObj.text
+
+            color: (colorScheme === hifi.colorSchemes.light) ? hifi.colors.tableRowLightOdd : hifi.colors.tableRowDarkOdd
+            border.color: (colorScheme === hifi.colorSchemes.light) ? hifi.colors.black : hifi.colors.lightGrayText
+            border.width: 2
+            width: textObj.width + 2 * hifi.dimensions.textPadding
+            height: hifi.dimensions.tableRowHeight
+            radius: 1
+            x: calcPosX()
+            y: calcPosY()
+            z: 2500 //< This should draw over anything in the window when active.
+            visible: false
+
+            Drag.active: treeViewMousePad.drag.active
+            Drag.keys: ["AssetServer_AddToWorld"]
+
+            function calcPosX() { return treeViewMousePad.mouseX + treeView.x - (dragObject.width/2); }
+            function calcPosY() { return treeViewMousePad.mouseY + treeView.y - dragObject.height; }
+
+            function reset() {
+                visible = false;
+                itemIndex = null;
+                text = "";
+            }
+
+            function setDragInfo(selectedIndex) {
+                var url = assetProxyModel.data(selectedIndex, 0x103);
+                if (!url) {
+                    console.log( "AssetServer.qml - dragObj::setDragInfo - URL Fail");
+                    return false;
+                }
+
+                var filename = url.slice(url.lastIndexOf('/') + 1);
+                if (filename.length === 0) {
+                    console.log( "AssetServer.qml - dragObj::setDragInfo - Filename Fail");
+                    return false;
+                }
+                    
+                console.log( "AssetServer.qml - dragObj::setDragInfo - Current Selection is: " + filename + "(" + url + ")" );
+
+                var isViableFileType = canAddToWorld(assetProxyModel.data(selectedIndex, 0x100));
+                if (!isViableFileType) {
+                    console.log( "AssetServer.qml - dragObj::setDragInfo - Non-viable FileType.  Only fbx & obj file types are supported.");
+                    return false;
+                }
+
+                visible = true;
+                x = Qt.binding( function() { return dragObject.calcPosX(); } );
+                y = Qt.binding( function() { return dragObject.calcPosY(); } );
+                itemIndex = selectedIndex;
+                text = filename;
+
+                return true;
+            }
+
+            FiraSansSemiBold {
+                id: textObj
+
+                anchors.centerIn: parent
+                size: hifi.fontSizes.tableText
+                color: (colorScheme === hifi.colorSchemes.light) ? hifi.colors.black : hifi.colors.lightGrayText
+            }
+        }//END_OF( dragObject )
 
         Row {
             id: infoRow
