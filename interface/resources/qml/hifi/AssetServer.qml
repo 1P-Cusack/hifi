@@ -49,8 +49,7 @@ ScrollingWindow {
     }
 
     Component.onCompleted: {
-        //ApplicationInterface.uploadRequest.connect(uploadClicked);
-        ApplicationInterface.uploadRequest.connect(uploadClickedOnCompComplete);
+        ApplicationInterface.uploadRequest.connect(uploadClicked);
         assetMappingsModel.errorGettingMappings.connect(handleGetMappingsError);
         assetMappingsModel.autoRefreshEnabled = true;
 
@@ -375,14 +374,7 @@ ScrollingWindow {
     Timer {
         id: timer
     }
-    function uploadClickedOnQueue(fileUrl){
-        console.log("AssetServer.qml - uploadClickedOnQueue for: ", fileUrl );
-        uploadClicked(fileUrl);
-    }
-    function uploadClickedOnCompComplete(fileUrl){
-        console.log("AssetServer.qml - uploadClickedOnCompComplete for: ", fileUrl );
-        uploadClicked(fileUrl);
-    }
+
     function uploadClicked(fileUrl) {
         if (uploadOpen) {
             return;
@@ -436,10 +428,8 @@ ScrollingWindow {
         }
 
         if (fileUrl) {
-            console.log("AssetServer.qml - uploadClicked::onClicked -> Triggering doUpload with DropEvent with file: ", fileUrl);
             doUpload(fileUrl, true);
         } else {
-            console.log("AssetServer.qml - uploadClicked::onClicked -> null/undefined fileUrl: Triggering FileDialogBrowser.");
             var browser = desktop.fileDialog({
                 selectDirectory: false,
                 dir: currentDirectory
@@ -739,31 +729,14 @@ ScrollingWindow {
                 propagateComposedEvents: true
                 anchors.fill: parent
                 acceptedButtons: Qt.RightButton
-                //acceptedButtons: Qt.RightButton | Qt.LeftButton
 
                 onClicked: {
-                    if (!HMD.active /*&& (mouse.button === Qt.RightButton)*/) {  // Popup only displays properly on desktop
+                    if (!HMD.active) {  // Popup only displays properly on desktop
                         var index = treeView.indexAt(mouse.x, mouse.y);
                         treeView.selection.setCurrentIndex(index, 0x0002);
                         contextMenu.currentIndex = index;
                         contextMenu.popup();
-                    }/* else if ( mouse.button === Qt.LeftButton ) {
-                        var numDirs = treeView.branchModelIndices.length;
-                        var index = treeView.indexAt(mouse.x, mouse.y);
-                        for (var branchIndex = 0; branchIndex < numDirs; ++branchIndex) {
-                            if (index != treeView.branchModelIndices[ branchIndex ]) {
-                                continue;
-                            }
-
-                            console.log("AssetServer.qml - treeViewMousePad::onClicked - Branch Screening: Match Found at arrIndex: " + branchIndex);
-                            mouse.accepted = false;
-                            break;
-                        }
-
-                        if ( mouse.accepted === true ) {
-                            treeView.selection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect);
-                        }
-                    }*/
+                    }
                 }//END_OF( treeViewMousePad::onClicked )
                 onPressAndHold: {
                     console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Triggered");
@@ -845,10 +818,6 @@ ScrollingWindow {
             function clearDrag() {
                 dragObject.reset();
                 treeViewMousePad.drag.target = null;
-            }
-
-            onSelectedFile: {
-                //markIndexForDrag(curSelectionIndex, prevSelectionIndex);
             }
         }// END_OF( treeView )
 
@@ -1179,8 +1148,7 @@ ScrollingWindow {
                     height: 30
                     width: 155
 
-                    //onClickedQueued: uploadClicked()
-                    onClickedQueued: uploadClickedOnQueue()
+                    onClickedQueued: uploadClicked()
                 }
 
                 Item {
