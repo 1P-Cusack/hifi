@@ -97,6 +97,19 @@ function updateProperties(properties) {
     }));
 }
 
+function setEntityColorSectionVisible(isVisible) {
+    var colorSection = $("#base-color-section");
+    if (colorSection.length === 0) {
+        return;
+    }
+
+    if (isVisible) {
+        colorSection.show();
+    } else {
+        colorSection.hide();
+    }
+}
+
 function createEmitCheckedPropertyUpdateFunction(propertyName) {
     return function() {
         updateProperty(propertyName, this.checked);
@@ -970,13 +983,25 @@ function loaded() {
                         if (properties.type == "Shape" || properties.type == "Box" || properties.type == "Sphere") {
                             elShape.value = properties.shape;
                             setDropdownText(elShape);
-                        }
 
-                        if (properties.type == "Shape" || properties.type == "Box" || properties.type == "Sphere" || properties.type == "ParticleEffect") {
+                            // @note: This is needed in the event that the previous
+                            //        user selection was a particle system.  See 
+                            //        ParticleEffect check notation for more details.
+                            setEntityColorSectionVisible(true);
+
                             elColorRed.value = properties.color.red;
                             elColorGreen.value = properties.color.green;
                             elColorBlue.value = properties.color.blue;
                             elColorControlVariant2.style.backgroundColor = "rgb(" + properties.color.red + "," + properties.color.green + "," + properties.color.blue + ")";
+
+                        }
+
+                        // @note: Particles are a special case for showing &
+                        //        hiding basic color field due to particles having
+                        //        their own special explorer system setup housed in a separate tab & document
+                        //        to that of the Properties tab & document used by the other entity types.
+                        if (properties.type == "ParticleEffect") {
+                            setEntityColorSectionVisible(false);
                         }
 
                         if (properties.type == "Model") {
