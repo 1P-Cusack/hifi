@@ -1308,13 +1308,14 @@ function loaded() {
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
+            submit: false,  // We don't want to have a submission button
             onShow: function(colpick) {
                 $('#property-color-control2').attr('active', 'true');
             },
             onHide: function(colpick) {
                 $('#property-color-control2').attr('active', 'false');
             },
-            onSubmit: function(hsb, hex, rgb, el) {
+            onChange: function(hsb, hex, rgb, el) {
                 $(el).css('background-color', '#' + hex);
                 $(el).colpickHide();
                 emitColorPropertyUpdate('color', rgb.r, rgb.g, rgb.b);
