@@ -1281,17 +1281,49 @@ function loaded() {
         elColorRed.addEventListener('change', colorChangeFunction);
         elColorGreen.addEventListener('change', colorChangeFunction);
         elColorBlue.addEventListener('change', colorChangeFunction);
+/*        colorPickers.push($('#property-color-control1').colpick({
+            colorScheme: 'dark',
+            layout: 'hex',
+            color: '000000',
+            submit: false,  // We don't want to have a submission button
+            onShow: function(colpick) {
+                $('#property-color-control1').attr('active', 'true');
+                
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers[0].colpickSetColor({ "r": elColorRed.value, 
+                    "g": elColorGreen.value, 
+                    "b": elColorBlue.value});
+            },
+            onHide: function(colpick) {
+                $('#property-color-control1').attr('active', 'false');
+            },
+            onChange: function(hsb, hex, rgb, el) {
+                $(el).css('background-color', '#' + hex);
+                emitColorPropertyUpdate('color', rgb.r, rgb.g, rgb.b);
+                // Keep the companion control in sync
+                elColorControl2.style.backgroundColor = "rgb(" + rgb.r + "," + rgb.g + "," + rgb.b + ")";
+            }
+        }));
+*/
         colorPickers.push($('#property-color-control2').colpick({
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
+            submit: false,  // We don't want to have a submission button
             onShow: function(colpick) {
                 $('#property-color-control2').attr('active', 'true');
+
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers[/*1*/0].colpickSetColor({ "r": elColorRed.value, 
+                    "g": elColorGreen.value,
+                    "b": elColorBlue.value});
             },
             onHide: function(colpick) {
                 $('#property-color-control2').attr('active', 'false');
             },
-            onSubmit: function(hsb, hex, rgb, el) {
+            onChange: function(hsb, hex, rgb, el) {
                 $(el).css('background-color', '#' + hex);
                 $(el).colpickHide();
                 emitColorPropertyUpdate('color', rgb.r, rgb.g, rgb.b);
