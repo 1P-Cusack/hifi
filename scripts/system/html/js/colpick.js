@@ -6,7 +6,7 @@ under the MIT and GPL licenses
 For usage and examples: colpick.com/plugin
  */
 
-/* global document, Element, EventBridge, jQuery, navigator, window, _ $ */
+/* global console, document, Element, EventBridge, jQuery, navigator, window, _ $ */
 
 (function ($) {
     var colpick = function () {
@@ -124,33 +124,41 @@ For usage and examples: colpick.com/plugin
             },
             // Change style on blur and on focus of inputs
             blur = function (ev) {
+                console.log( "ColorPicker::blur" );
                 $(this).parent().removeClass('colpick_focus');
             },
             focus = function () {
+                console.log( "ColorPicker::focus" );
                 $(this).parent().parent().data('colpick').fields.parent().removeClass('colpick_focus');
                 $(this).parent().addClass('colpick_focus');
             },
             // Increment/decrement arrows functions
             downIncrement = function (ev) {
-                if (ev.preventDefault !== null ) {
+                console.log( "ColorPicker::downIncrement" );
+                if (ev.preventDefault) {
+                    console.log( "ColorPicker::downIncrement -- preventDefault triggered" );
                     ev.preventDefault();
                 } else { 
+                    console.log( "ColorPicker::downIncrement -- ev.returnValue -> false" );
                     ev.returnValue = false;
                 }
-                var field = $(this).parent().find('input').focus();
+                var field = $(this).parent().parent().find('input');
+                var oldValue = parseInt(field.val(), 10);
+                field.val(Math.max(oldValue - 1, 0).toString());
+                console.log( "ColorPicker::downIncrement -- fieldValue: " + field.val() + " oldValue: " + oldValue );
                 var current = {
-                    el: $(this).parent().addClass('colpick_slider'),
-                    max: this.parentNode.className.indexOf('_hsb_h') > 0 ? 360 : 
-                        (this.parentNode.className.indexOf('_hsb') > 0 ? 100 : 255),
+                    el: $(this).parent().parent().addClass('colpick_slider'),
                     y: ev.pageY,
                     field: field,
                     val: parseInt(field.val(), 10),
-                    preview: $(this).parent().parent().data('colpick').livePreview
+                    previousVal: oldValue,
+                    preview: $(this).parent().parent().parent().data('colpick').livePreview
                 };
-                $(document).mouseup(current, upIncrement);
+                $(document).mouseup(current, releaseIncrement);
                 $(document).mousemove(current, moveIncrement);
             },
             moveIncrement = function (ev) {
+                console.log( "ColorPicker::moveIncrement" );
                 ev.data.field.val(Math.max(0, Math.min(ev.data.max, parseInt(ev.data.val - ev.pageY + ev.data.y, 10))));
                 if (ev.data.preview) {
                     change.apply(ev.data.field.get(0), [true]);
@@ -158,15 +166,47 @@ For usage and examples: colpick.com/plugin
                 return false;
             },
             upIncrement = function (ev) {
-                change.apply(ev.data.field.get(0), [true]);
-                ev.data.el.removeClass('colpick_slider').find('input').focus();
-                $(document).off('mouseup', upIncrement);
-                $(document).off('mousemove', moveIncrement);
+                console.log( "ColorPicker::upIncrement" );
+                if (ev.preventDefault) {
+                    console.log( "ColorPicker::upIncrement -- preventDefault triggered" );
+                    ev.preventDefault();
+                } else { 
+                    console.log( "ColorPicker::upIncrement -- ev.returnValue -> false" );
+                    ev.returnValue = false;
+                }
+                var field = $(this).parent().parent().find('input');
+                var maxValueAllowed = this.parentNode.parentNode.className.indexOf('_hsb_h') > 0 ? 360 : 
+                    (this.parentNode.parentNode.className.indexOf('_hsb') > 0 ? 100 : 255);
+                var oldValue = parseInt(field.val(), 10);
+                field.val(Math.min(oldValue + 1, maxValueAllowed).toString());
+                console.log( "ColorPicker::upIncrement -- fieldValue: " + field.val() + " oldValue: " + oldValue + " maxAllowed: " + maxValueAllowed );
+                var current = {
+                    el: $(this).parent().parent().addClass('colpick_slider'),
+                    max: maxValueAllowed,
+                    y: ev.pageY,
+                    field: field,
+                    val: parseInt(field.val(), 10),
+                    previousVal: oldValue,
+                    preview: $(this).parent().parent().parent().data('colpick').livePreview
+                };
+                $(document).mouseup(current, releaseIncrement);
+                $(document).mousemove(current, moveIncrement);
                 return false;
+            },
+            releaseIncrement = function (ev) {
+                console.log( "ColorPicker::releaseIncrement" );
+                console.log( "ColorPicker::releaseIncrement -- fieldValue: " + ev.data.field.val() + " field.get(0): " + ev.data.field.get(0) );
+                
+                change.apply(ev.data.field.get(0), [true]);
+                ev.data.el.removeClass('colpick_slider').find('input');//.focus();
+
+                $(document).off('mouseup', releaseIncrement);
+                $(document).off('mousemove', moveIncrement);
             },
             // Hue slider functions
             downHue = function (ev) {
-                if (ev.preventDefault !== null ) {
+                console.log( "ColorPicker::downHue" );
+                if (ev.preventDefault) {
                     ev.preventDefault();
                 } else { 
                     ev.returnValue = false;
@@ -187,6 +227,7 @@ For usage and examples: colpick.com/plugin
                 return false;
             },
             moveHue = function (ev) {
+                console.log( "ColorPicker::moveHue" );
                 var pageY = ((ev.type === 'touchmove') ? ev.originalEvent.changedTouches[0].pageY : ev.pageY );
                 change.apply(
                     ev.data.cal.data('colpick').fields.eq(4).val(parseInt(360*(ev.data.cal.data('colpick').height - 
@@ -198,6 +239,7 @@ For usage and examples: colpick.com/plugin
                 return false;
             },
             upHue = function (ev) {
+                console.log( "ColorPicker::upHue" );
                 fillRGBFields(ev.data.cal.data('colpick').color, ev.data.cal.get(0));
                 fillHexFields(ev.data.cal.data('colpick').color, ev.data.cal.get(0));
                 $(document).off('mouseup touchend',upHue);
@@ -206,7 +248,8 @@ For usage and examples: colpick.com/plugin
             },
             // Color selector functions
             downSelector = function (ev) {
-                if (ev.preventDefault !== null ) {
+                console.log( "ColorPicker::downSelector" );
+                if (ev.preventDefault) {
                     ev.preventDefault();
                 } else { 
                     ev.returnValue = false;
@@ -238,6 +281,7 @@ For usage and examples: colpick.com/plugin
                 return false;
             },
             moveSelector = function (ev) {
+                console.log( "ColorPicker::moveSelector" );
                 var pageX,pageY;
                 if (ev.type === 'touchmove') {
                     pageX = ev.originalEvent.changedTouches[0].pageX;
@@ -259,6 +303,7 @@ For usage and examples: colpick.com/plugin
                 return false;
             },
             upSelector = function (ev) {
+                console.log( "ColorPicker::upSelector" );
                 fillRGBFields(ev.data.cal.data('colpick').color, ev.data.cal.get(0));
                 fillHexFields(ev.data.cal.data('colpick').color, ev.data.cal.get(0));
                 $(document).off('mouseup touchend',upSelector);
@@ -275,6 +320,7 @@ For usage and examples: colpick.com/plugin
             },
             // Show/hide the color picker
             show = function (ev) {
+                console.log( "ColorPicker::show" );
                 // Prevent the trigger of any direct parent
                 ev.stopPropagation();
                 var cal = $('#' + $(this).data('colpickId'));
@@ -298,6 +344,7 @@ For usage and examples: colpick.com/plugin
                 });
             },
             hide = function (ev) {
+                console.log( "ColorPicker::hide" );
                 if (ev.data.cal.data('colpick').onHide.apply(this, [ev.data.cal.get(0)]) !== false) {
                     ev.data.cal.hide();
                 }
@@ -386,8 +433,9 @@ For usage and examples: colpick.com/plugin
                         cal.find('div.colpick_submit').html(options.submitText).click(clickSubmit);
                         // Setup input fields
                         options.fields = cal.find('input').change(change).blur(blur).focus(focus);
-                        cal.find('div.colpick_field_arrs').mousedown(downIncrement).end().
-                            find('div.colpick_current_color').click(restoreOriginal);
+                        cal.find('div.colpick_field_uarr').mousedown(upIncrement);
+                        cal.find('div.colpick_field_darr').mousedown(downIncrement);
+                        cal.find('div.colpick_current_color').click(restoreOriginal);
                         // Setup hue selector
                         options.selector = cal.find('div.colpick_color').on('mousedown touchstart',downSelector);
                         options.selectorIndic = options.selector.find('div.colpick_selector_outer');

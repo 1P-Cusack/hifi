@@ -311,7 +311,7 @@ colpick Color Picker / colpick.com
 	display:none;
 }
 .colpick_rgbhex_ns .colpick_new_color{
-	width:68px;
+	width:34;
 	border: 1px solid #8f8f8f;
 }
 .colpick_rgbhex_ns .colpick_rgb_r {
