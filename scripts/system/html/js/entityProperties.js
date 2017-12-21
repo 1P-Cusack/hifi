@@ -1306,31 +1306,6 @@ function loaded() {
             }
         }));
 
-/*
-        colorPickers.push($('#property-color-control2').colpick({
-            colorScheme: 'dark',
-            layout: 'hex',
-            color: '000000',
-            submit: false,  // We don't want to have a submission button
-            onShow: function(colpick) {
-                $('#property-color-control2').attr('active', 'true');
-
-                // The original color preview within the picker needs to be updated on show because
-                // prior to the picker being shown we don't have access to the selections' starting color.
-                colorPickers[1].colpickSetColor({ "r": isVariableValid( elColorRed ) ? elColorRed.value : 0, 
-                    "g": isVariableValid( elColorGreen ) ? elColorGreen.value : 0,
-                    "b": isVariableValid( elColorBlue ) ? elColorBlue.value : 0 });
-            },
-            onHide: function(colpick) {
-                $('#property-color-control2').attr('active', 'false');
-            },
-            onChange: function(hsb, hex, rgb, el) {
-                $(el).css('background-color', '#' + hex);
-                $(el).colpickHide();
-                emitColorPropertyUpdate('color', rgb.r, rgb.g, rgb.b);
-            }
-        }));
-*/
         elLightSpotLight.addEventListener('change', createEmitCheckedPropertyUpdateFunction('isSpotlight'));
 
         var lightColorChangeFunction = createEmitColorPropertyUpdateFunction(
