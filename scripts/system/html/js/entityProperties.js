@@ -29,7 +29,7 @@ var ICON_FOR_TYPE = {
 
 var EDITOR_TIMEOUT_DURATION = 1500;
 var KEY_P = 80; // Key code for letter p used for Parenting hotkey.
-var colorPickers = [];
+var colorPickers = {};
 var lastEntityID = null;
 
 function debugPrint(message) {
@@ -73,8 +73,8 @@ function enableProperties() {
 function disableProperties() {
     disableChildren(document.getElementById("properties-list"), "input, textarea, checkbox, .dropdown dl, .color-picker");
     disableChildren(document, ".colpick");
-    for (var i = 0; i < colorPickers.length; i++) {
-        colorPickers[i].colpickHide();
+    for (var pickKey in colorPickers) {
+        colorPickers[pickKey].colpickHide();
     }
     var elLocked = document.getElementById("property-locked");
 
@@ -1283,7 +1283,7 @@ function loaded() {
             showSaveUserDataButton();
         });
 
-        colorPickers.push($('#property-color-control1').colpick({
+        colorPickers['#property-color-control1'] = $('#property-color-control1').colpick({
             colorScheme: 'dark',
             layout: 'rgbhex',
             color: '000000',
@@ -1293,7 +1293,7 @@ function loaded() {
                 
                 // The original color preview within the picker needs to be updated on show because
                 // prior to the picker being shown we don't have access to the selections' starting color.
-                colorPickers[0].colpickSetColor({ "r": baseColorRed, 
+                colorPickers['#property-color-control1'].colpickSetColor({ "r": baseColorRed, 
                     "g": baseColorGreen, 
                     "b": baseColorBlue});
             },
@@ -1304,7 +1304,7 @@ function loaded() {
                 $(el).css('background-color', '#' + hex);
                 emitColorPropertyUpdate('color', rgb.r, rgb.g, rgb.b);
             }
-        }));
+        });
 
         elLightSpotLight.addEventListener('change', createEmitCheckedPropertyUpdateFunction('isSpotlight'));
 
@@ -1313,12 +1313,20 @@ function loaded() {
         elLightColorRed.addEventListener('change', lightColorChangeFunction);
         elLightColorGreen.addEventListener('change', lightColorChangeFunction);
         elLightColorBlue.addEventListener('change', lightColorChangeFunction);
-        colorPickers.push($('#property-light-color').colpick({
+        colorPickers['#property-light-color'] = $('#property-light-color').colpick({
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
             onShow: function(colpick) {
                 $('#property-light-color').attr('active', 'true');
+
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers['#property-light-color'].colpickSetColor({
+                    "r": elLightColorRed.value,
+                    "g": elLightColorGreen.value,
+                    "b": elLightColorBlue.value
+                });
             },
             onHide: function(colpick) {
                 $('#property-light-color').attr('active', 'false');
@@ -1328,7 +1336,7 @@ function loaded() {
                 $(el).colpickHide();
                 emitColorPropertyUpdate('color', rgb.r, rgb.g, rgb.b);
             }
-        }));
+        });
 
         elLightIntensity.addEventListener('change', createEmitNumberPropertyUpdateFunction('intensity', 1));
         elLightFalloffRadius.addEventListener('change', createEmitNumberPropertyUpdateFunction('falloffRadius', 1));
@@ -1368,12 +1376,19 @@ function loaded() {
         elTextTextColorRed.addEventListener('change', textTextColorChangeFunction);
         elTextTextColorGreen.addEventListener('change', textTextColorChangeFunction);
         elTextTextColorBlue.addEventListener('change', textTextColorChangeFunction);
-        colorPickers.push($('#property-text-text-color').colpick({
+        colorPickers['#property-text-text-color'] = $('#property-text-text-color').colpick({
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
             onShow: function(colpick) {
                 $('#property-text-text-color').attr('active', 'true');
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers['#property-text-text-color'].colpickSetColor({
+                    "r": elTextTextColorRed.value,
+                    "g": elTextTextColorGreen.value,
+                    "b": elTextTextColorBlue.value
+                });
             },
             onHide: function(colpick) {
                 $('#property-text-text-color').attr('active', 'false');
@@ -1384,19 +1399,26 @@ function loaded() {
                 $(el).attr('active', 'false');
                 emitColorPropertyUpdate('textColor', rgb.r, rgb.g, rgb.b);
             }
-        }));
+        });
 
         var textBackgroundColorChangeFunction = createEmitColorPropertyUpdateFunction(
             'backgroundColor', elTextBackgroundColorRed, elTextBackgroundColorGreen, elTextBackgroundColorBlue);
         elTextBackgroundColorRed.addEventListener('change', textBackgroundColorChangeFunction);
         elTextBackgroundColorGreen.addEventListener('change', textBackgroundColorChangeFunction);
         elTextBackgroundColorBlue.addEventListener('change', textBackgroundColorChangeFunction);
-        colorPickers.push($('#property-text-background-color').colpick({
+        colorPickers['#property-text-background-color'] = $('#property-text-background-color').colpick({
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
             onShow: function(colpick) {
                 $('#property-text-background-color').attr('active', 'true');
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers['#property-text-background-color'].colpickSetColor({
+                    "r": elTextBackgroundColorRed.value,
+                    "g": elTextBackgroundColorGreen.value,
+                    "b": elTextBackgroundColorBlue.value
+                });
             },
             onHide: function(colpick) {
                 $('#property-text-background-color').attr('active', 'false');
@@ -1406,16 +1428,23 @@ function loaded() {
                 $(el).colpickHide();
                 emitColorPropertyUpdate('backgroundColor', rgb.r, rgb.g, rgb.b);
             }
-        }));
+        });
 
         elZoneStageSunModelEnabled.addEventListener('change', 
             createEmitGroupCheckedPropertyUpdateFunction('stage', 'sunModelEnabled'));
-        colorPickers.push($('#property-zone-key-light-color').colpick({
+        colorPickers['#property-zone-key-light-color'] = $('#property-zone-key-light-color').colpick({
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
             onShow: function(colpick) {
                 $('#property-zone-key-light-color').attr('active', 'true');
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers['#property-zone-key-light-color'].colpickSetColor({
+                    "r": elZoneKeyLightColorRed.value,
+                    "g": elZoneKeyLightColorGreen.value,
+                    "b": elZoneKeyLightColorBlue.value
+                });
             },
             onHide: function(colpick) {
                 $('#property-zone-key-light-color').attr('active', 'false');
@@ -1425,7 +1454,7 @@ function loaded() {
                 $(el).colpickHide();
                 emitColorPropertyUpdate('color', rgb.r, rgb.g, rgb.b, 'keyLight');
             }
-        }));
+        });
         var zoneKeyLightColorChangeFunction = createEmitGroupColorPropertyUpdateFunction('keyLight', 'color', 
             elZoneKeyLightColorRed, elZoneKeyLightColorGreen, elZoneKeyLightColorBlue);
         elZoneKeyLightColorRed.addEventListener('change', zoneKeyLightColorChangeFunction);
@@ -1452,12 +1481,19 @@ function loaded() {
 
         elZoneHazeRange.addEventListener('change', createEmitGroupNumberPropertyUpdateFunction('haze', 'hazeRange'));
 
-        colorPickers.push($('#property-zone-haze-color').colpick({
+        colorPickers['#property-zone-haze-color'] = $('#property-zone-haze-color').colpick({
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
             onShow: function(colpick) {
                 $('#property-zone-haze-color').attr('active', 'true');
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers['#property-zone-haze-color'].colpickSetColor({
+                    "r": elZoneHazeColorRed.value,
+                    "g": elZoneHazeColorGreen.value,
+                    "b": elZoneHazeColorBlue.value
+                });
             },
             onHide: function(colpick) {
                 $('#property-zone-haze-color').attr('active', 'false');
@@ -1467,7 +1503,7 @@ function loaded() {
                 $(el).colpickHide();
                 emitColorPropertyUpdate('hazeColor', rgb.r, rgb.g, rgb.b, 'haze');
             }
-        }));
+        });
         var zoneHazeColorChangeFunction = createEmitGroupColorPropertyUpdateFunction('haze', 'hazeColor', 
             elZoneHazeColorRed, 
             elZoneHazeColorGreen, 
@@ -1477,12 +1513,19 @@ function loaded() {
         elZoneHazeColorGreen.addEventListener('change', zoneHazeColorChangeFunction);
         elZoneHazeColorBlue.addEventListener('change', zoneHazeColorChangeFunction);
 
-        colorPickers.push($('#property-zone-haze-glare-color').colpick({
+        colorPickers['#property-zone-haze-glare-color'] = $('#property-zone-haze-glare-color').colpick({
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
             onShow: function(colpick) {
                 $('#property-zone-haze-glare-color').attr('active', 'true');
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers['#property-zone-haze-glare-color'].colpickSetColor({
+                    "r": elZoneHazeGlareColorRed.value,
+                    "g": elZoneHazeGlareColorGreen.value,
+                    "b": elZoneHazeGlareColorBlue.value
+                });
             },
             onHide: function(colpick) {
                 $('#property-zone-haze-glare-color').attr('active', 'false');
@@ -1492,7 +1535,7 @@ function loaded() {
                 $(el).colpickHide();
                 emitColorPropertyUpdate('hazeGlareColor', rgb.r, rgb.g, rgb.b, 'haze');
             }
-        }));
+        });
         var zoneHazeGlareColorChangeFunction = createEmitGroupColorPropertyUpdateFunction('haze', 'hazeGlareColor', 
             elZoneHazeGlareColorRed, 
             elZoneHazeGlareColorGreen, 
@@ -1529,12 +1572,19 @@ function loaded() {
         elZoneSkyboxColorRed.addEventListener('change', zoneSkyboxColorChangeFunction);
         elZoneSkyboxColorGreen.addEventListener('change', zoneSkyboxColorChangeFunction);
         elZoneSkyboxColorBlue.addEventListener('change', zoneSkyboxColorChangeFunction);
-        colorPickers.push($('#property-zone-skybox-color').colpick({
+        colorPickers['#property-zone-skybox-color'] = $('#property-zone-skybox-color').colpick({
             colorScheme: 'dark',
             layout: 'hex',
             color: '000000',
             onShow: function(colpick) {
                 $('#property-zone-skybox-color').attr('active', 'true');
+                // The original color preview within the picker needs to be updated on show because
+                // prior to the picker being shown we don't have access to the selections' starting color.
+                colorPickers['#property-zone-skybox-color'].colpickSetColor({
+                    "r": elZoneSkyboxColorRed.value,
+                    "g": elZoneSkyboxColorGreen.value,
+                    "b": elZoneSkyboxColorBlue.value
+                });
             },
             onHide: function(colpick) {
                 $('#property-zone-skybox-color').attr('active', 'false');
@@ -1544,7 +1594,7 @@ function loaded() {
                 $(el).colpickHide();
                 emitColorPropertyUpdate('color', rgb.r, rgb.g, rgb.b, 'skybox');
             }
-        }));
+        });
 
         elZoneSkyboxURL.addEventListener('change', createEmitGroupTextPropertyUpdateFunction('skybox', 'url'));
 
