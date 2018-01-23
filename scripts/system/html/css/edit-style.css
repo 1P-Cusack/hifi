@@ -800,13 +800,19 @@ div.refresh input[type="button"] {
     display: none !important;
 }
 
-#property-color-control1 {
+.base-color-fieldset, #property-color-control1 {
     display: table-cell;
     float: none;
 }
 
-#property-color-control1 + label  {
+#base-color-section + label  {
     border-left: 20px transparent solid;
+}
+
+.base-color-fieldset legend {
+    display: table-cell;
+    vertical-align: top;
+    margin-bottom: 4px;
 }
 
 .rgb label {
@@ -1490,7 +1496,7 @@ input#reset-to-natural-dimensions {
 }
 
 /* items to hide    */
-#properties-list.ParticleEffectMenu #base-color-section,
+#properties-list.ParticleEffectMenu .base-color-fieldset,
 #properties-list.ParticleEffectMenu #hyperlink,
 #properties-list.ParticleEffectMenu #light,
 #properties-list.ParticleEffectMenu #model,
@@ -1532,7 +1538,7 @@ input#reset-to-natural-dimensions {
 }
 /* items to hide */
 #properties-list.LightMenu #shape-list,
-#properties-list.LightMenu #base-color-section {
+#properties-list.LightMenu .base-color-fieldset {
     display: none
 }
 
@@ -1568,7 +1574,7 @@ input#reset-to-natural-dimensions {
 }
 /* items to hide */
 #properties-list.ModelMenu #shape-list,
-#properties-list.ModelMenu #base-color-section {
+#properties-list.ModelMenu .base-color-fieldset {
     display: none
 }
 
@@ -1604,7 +1610,7 @@ input#reset-to-natural-dimensions {
 }
 /* items to hide */
 #properties-list.ZoneMenu #shape-list,
-#properties-list.ZoneMenu #base-color-section {
+#properties-list.ZoneMenu .base-color-fieldset {
     display: none
 }
 
@@ -1640,7 +1646,7 @@ input#reset-to-natural-dimensions {
 }
 /* items to hide */
 #properties-list.WebMenu #shape-list,
-#properties-list.WebMenu #base-color-section {
+#properties-list.WebMenu .base-color-fieldset {
     display: none;
 }
 
@@ -1677,7 +1683,7 @@ input#reset-to-natural-dimensions {
 }
 /* items to hide */
 #properties-list.TextMenu #shape-list,
-#properties-list.TextMenu #base-color-section {
+#properties-list.TextMenu .base-color-fieldset {
     display: none
 }
 

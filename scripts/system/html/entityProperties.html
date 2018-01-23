@@ -66,15 +66,12 @@
                 <label for="property-name">Name</label>
                 <input type="text" id="property-name">
             </div>
-            <div class="physical-group color-section property rgb fstuple" id="base-color-section">
-                <div class="color-picker" id="property-color-control2"></div>
-                <label>Entity color</label>
-                <div class="tuple">
-                    <div><input type="number" class="red" id="property-color-red"><label for="property-color-red">Red:</label></div>
-                    <div><input type="number" class="green" id="property-color-green"><label for="property-color-green">Green:</label></div>
-                    <div><input type="number" class="blue" id="property-color-blue"><label for="property-color-blue">Blue:</label></div>
+            <fieldset class="physical-group base-color-fieldset property fstuple">
+                <legend>Entity color</legend>
+                <div class="physical-group color-section" id="base-color-section">
+                    <div class="color-picker" id="property-color-control1"></div>
                 </div>
-            </div>
+            </fieldset>
         </fieldset>
 
         <fieldset id="collision-info" class="major">

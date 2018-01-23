@@ -587,10 +587,13 @@ function loaded() {
         var elClearUserData = document.getElementById("userdata-clear");
         var elSaveUserData = document.getElementById("userdata-save");
         var elNewJSONEditor = document.getElementById('userdata-new-editor');
-        var elColorControlVariant2 = document.getElementById("property-color-control2");
-        var elColorRed = document.getElementById("property-color-red");
-        var elColorGreen = document.getElementById("property-color-green");
-        var elColorBlue = document.getElementById("property-color-blue");
+        var elColorControlVariant1 = document.getElementById("property-color-control1");
+        // ColorControlVariant1 strictly utilizes the color picker in rgbhex mode, thus there aren't any
+        // color channel elements to grab here; however, we do still need to track them during selection to ensure that the
+        // picker's color is set up initially.
+        var baseColorRed = 0;
+        var baseColorGreen = 0;
+        var baseColorBlue = 0;
 
         var elShape = document.getElementById("property-shape");
 
@@ -956,10 +959,10 @@ function loaded() {
 
                         if (properties.type === "Shape" || properties.type === "Box" || 
                                 properties.type === "Sphere" || properties.type === "ParticleEffect") {
-                            elColorRed.value = properties.color.red;
-                            elColorGreen.value = properties.color.green;
-                            elColorBlue.value = properties.color.blue;
-                            elColorControlVariant2.style.backgroundColor = "rgb(" + properties.color.red + "," + 
+                            baseColorRed = properties.color.red;
+                            baseColorGreen = properties.color.green;
+                            baseColorBlue = properties.color.blue;
+                            elColorControlVariant1.style.backgroundColor = "rgb(" + properties.color.red + "," + 
                                                                      properties.color.green + "," + properties.color.blue + ")";
                         }
 
@@ -1298,27 +1301,22 @@ function loaded() {
             showSaveUserDataButton();
         });
 
-        var colorChangeFunction = createEmitColorPropertyUpdateFunction(
-            'color', elColorRed, elColorGreen, elColorBlue);
-        elColorRed.addEventListener('change', colorChangeFunction);
-        elColorGreen.addEventListener('change', colorChangeFunction);
-        elColorBlue.addEventListener('change', colorChangeFunction);
-        colorPickers['#property-color-control2'] = $('#property-color-control2').colpick({
+        colorPickers['#property-color-control1'] = $('#property-color-control1').colpick({
             colorScheme: 'dark',
-            layout: 'hex',
+            layout: 'rgbhex',
             color: '000000',
             submit: false, // We don't want to have a submission button
             onShow: function(colpick) {
-                $('#property-color-control2').attr('active', 'true');
+                $('#property-color-control1').attr('active', 'true');
                 // The original color preview within the picker needs to be updated on show because
                 // prior to the picker being shown we don't have access to the selections' starting color.
-                colorPickers['#property-color-control2'].colpickSetColor({ 
-                    "r": elColorRed.value, 
-                    "g": elColorGreen.value, 
-                    "b": elColorBlue.value});
+                colorPickers['#property-color-control1'].colpickSetColor({ 
+                    "r": baseColorRed, 
+                    "g": baseColorGreen, 
+                    "b": baseColorBlue});
             },
             onHide: function(colpick) {
-                $('#property-color-control2').attr('active', 'false');
+                $('#property-color-control1').attr('active', 'false');
             },
             onChange: function(hsb, hex, rgb, el) {
                 $(el).css('background-color', '#' + hex);
