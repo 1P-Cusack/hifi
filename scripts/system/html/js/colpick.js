@@ -137,17 +137,18 @@ For usage and examples: colpick.com/plugin
                 } else { 
                     ev.returnValue = false;
                 }
-                var field = $(this).parent().find('input').focus();
+                var field = $(this).parent().parent().find('input');
+                var oldValue = parseInt(field.val(), 10);
+                field.val(Math.max(oldValue - 1, 0).toString());
                 var current = {
-                    el: $(this).parent().addClass('colpick_slider'),
-                    max: this.parentNode.className.indexOf('_hsb_h') > 0 ? 360 :
-                        (this.parentNode.className.indexOf('_hsb') > 0 ? 100 : 255),
+                    el: $(this).parent().parent().addClass('colpick_slider'),
                     y: ev.pageY,
                     field: field,
                     val: parseInt(field.val(), 10),
-                    preview: $(this).parent().parent().data('colpick').livePreview
+                    previousVal: oldValue,
+                    preview: $(this).parent().parent().parent().data('colpick').livePreview
                 };
-                $(document).mouseup(current, upIncrement);
+                $(document).mouseup(current, releaseIncrement);
                 $(document).mousemove(current, moveIncrement);
             },
             moveIncrement = function (ev) {
@@ -158,11 +159,36 @@ For usage and examples: colpick.com/plugin
                 return false;
             },
             upIncrement = function (ev) {
-                change.apply(ev.data.field.get(0), [true]);
-                ev.data.el.removeClass('colpick_slider').find('input').focus();
-                $(document).off('mouseup', upIncrement);
-                $(document).off('mousemove', moveIncrement);
+                if (ev.preventDefault) {
+                    ev.preventDefault();
+                } else { 
+                    ev.returnValue = false;
+                }
+                var field = $(this).parent().parent().find('input');
+                var maxValueAllowed = this.parentNode.parentNode.className.indexOf('_hsb_h') > 0 ? 360 : 
+                    (this.parentNode.parentNode.className.indexOf('_hsb') > 0 ? 100 : 255);
+                var oldValue = parseInt(field.val(), 10);
+                field.val(Math.min(oldValue + 1, maxValueAllowed).toString());
+                var current = {
+                    el: $(this).parent().parent().addClass('colpick_slider'),
+                    max: maxValueAllowed,
+                    y: ev.pageY,
+                    field: field,
+                    val: parseInt(field.val(), 10),
+                    previousVal: oldValue,
+                    preview: $(this).parent().parent().parent().data('colpick').livePreview
+                };
+                $(document).mouseup(current, releaseIncrement);
+                $(document).mousemove(current, moveIncrement);
                 return false;
+            },
+            releaseIncrement = function (ev) {
+                
+                change.apply(ev.data.field.get(0), [true]);
+                ev.data.el.removeClass('colpick_slider').find('input');
+
+                $(document).off('mouseup', releaseIncrement);
+                $(document).off('mousemove', moveIncrement);
             },
             // Hue slider functions
             downHue = function (ev) {
@@ -386,6 +412,7 @@ For usage and examples: colpick.com/plugin
                         cal.find('div.colpick_submit').html(options.submitText).click(clickSubmit);
                         // Setup input fields
                         options.fields = cal.find('input').change(change).blur(blur).focus(focus);
+                        cal.find('div.colpick_field_uarr').mousedown(upIncrement);
                         cal.find('div.colpick_field_darr').mousedown(downIncrement);
                         cal.find('div.colpick_current_color').click(restoreOriginal);
                         // Setup hue selector
