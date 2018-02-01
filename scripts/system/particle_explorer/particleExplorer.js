@@ -91,7 +91,7 @@
                                 throw "Not success :(";
                             }
                         } catch (e) {
-                            print("couldnt copy field");
+                            print("couldn't copy field");
                         }
                     }
                 },
@@ -110,8 +110,9 @@
                     id: "lifespan",
                     name: "Lifespan",
                     type: "SliderFloat",
-                    min: 0.01,
-                    max: 10
+                    min: 0.05,
+                    max: 10,
+                    step: 0.05
                 },
                 {
                     type: "Row"
@@ -150,6 +151,7 @@
                     id: "emitSpeed",
                     name: "Emit Speed",
                     type: "SliderFloat",
+                    min: 1,
                     max: 5
                 },
                 {
@@ -194,7 +196,8 @@
                     id: "particleRadius",
                     name: "Particle Radius",
                     type: "SliderFloat",
-                    max: 4.0
+                    max: 4.0,
+                    min: 0.05
                 },
                 {
                     type: "Row"
@@ -203,7 +206,8 @@
                     id: "radiusSpread",
                     name: "Radius Spread",
                     type: "SliderFloat",
-                    max: 4.0
+                    max: 4.0,
+                    min: 0.05
                 },
                 {
                     type: "Row"
@@ -212,7 +216,8 @@
                     id: "radiusStart",
                     name: "Radius Start",
                     type: "SliderFloat",
-                    max: 4.0
+                    max: 4.0,
+                    min: 0.05
                 },
                 {
                     type: "Row"
@@ -221,7 +226,8 @@
                     id: "radiusFinish",
                     name: "Radius Finish",
                     type: "SliderFloat",
-                    max: 4.0
+                    max: 4.0,
+                    min: 0.05
                 },
                 {
                     type: "Row"
@@ -309,7 +315,10 @@
                 {
                     id: "alpha",
                     name: "Alpha",
-                    type: "SliderFloat"
+                    type: "SliderFloat",
+                    min: 0.0,
+                    max: 1.0,
+                    step: 0.05
                 },
                 {
                     type: "Row"
@@ -317,7 +326,10 @@
                 {
                     id: "alphaSpread",
                     name: "Alpha Spread",
-                    type: "SliderFloat"
+                    type: "SliderFloat",
+                    min: 0.0,
+                    max: 1.0,
+                    step: 0.05
                 },
                 {
                     type: "Row"
@@ -325,7 +337,10 @@
                 {
                     id: "alphaStart",
                     name: "Alpha Start",
-                    type: "SliderFloat"
+                    type: "SliderFloat",
+                    min: 0.0,
+                    max: 1.0,
+                    step: 0.05
                 },
                 {
                     type: "Row"
@@ -333,7 +348,10 @@
                 {
                     id: "alphaFinish",
                     name: "Alpha Finish",
-                    type: "SliderFloat"
+                    type: "SliderFloat",
+                    min: 0.0,
+                    max: 1.0,
+                    step: 0.05
                 },
                 {
                     type: "Row"

@@ -533,40 +533,83 @@ HifiEntityUI.prototype = {
         container.appendChild(inputField);
         parent.appendChild(container);
 
+        function helperRoundNumberWithPrecision(number, precision) {
+            var factor = Math.pow(10, precision);
+            var numberScaledRound = number * factor;
+            numberScaledRound = Math.round(numberScaledRound) / factor;
+            return numberScaledRound;
+        }
+
         if (group.type === "SliderInteger") {
             inputField.setAttribute("min", group.min !== undefined ? group.min : 0);
-            inputField.setAttribute("step", 1);
+            inputField.setAttribute("max", group.max !== undefined ? group.max : 1000);
+            inputField.setAttribute("step", group.step !== undefined ? group.step : 1);
 
             slider.setAttribute("min", group.min !== undefined ? group.min : 0);
-            slider.setAttribute("max", group.max !== undefined ? group.max : 10000);
-            slider.setAttribute("step", 1);
+            slider.setAttribute("max", group.max !== undefined ? group.max : 1000);
+            slider.setAttribute("step", group.step !== undefined ? group.step : 1);
 
             inputField.oninput = function (event) {
+                var maxAllowedValue = parseInt(inputField.max);
+                var minAllowedValue = parseInt(inputField.min);
 
-                if (parseInt(event.target.value) > parseInt(slider.getAttribute("max")) && group.max !== 1) {
-                    slider.setAttribute("max", event.target.value);
+                var targetValue = parseInt(event.target.value);
+                if (isNaN(targetValue)) {
+                    console.log("Warning: SliderInteger( onInput ) - " + group.id + ": received NaN value.");
+                    return;
                 }
-                slider.value = event.target.value;
 
+                if (targetValue > maxAllowedValue) {
+                    // Allow overriding of previous max value
+                    if (group.max !== 1) {
+                        slider.setAttribute("max", targetValue);
+                        inputField.setAttribute("max", targetValue);
+                    } else { // ...Sanity check and clamp targetValue
+                        targetValue = maxAllowedValue;
+                    }
+                } else if (targetValue < minAllowedValue) {
+                    targetValue = minAllowedValue;
+                }
+
+                inputField.value = targetValue;
+                slider.value = inputField.value;
                 self.webBridgeSync(group.id, slider.value);
             };
+            
             inputField.onchange = inputField.oninput;
+
             slider.oninput = function (event) {
                 inputField.value = event.target.value;
-                self.webBridgeSync(group.id, slider.value);
             };
 
             inputField.id = group.id;
         } else if (group.type === "SliderRadian") {
             slider.setAttribute("min", group.min !== undefined ? group.min : 0);
             slider.setAttribute("max", group.max !== undefined ? group.max : 180);
-            slider.setAttribute("step", 1);
+            slider.setAttribute("step", group.step !== undefined ? group.step : 1);
             parent.className += " radian";
-            inputField.setAttribute("min", (group.min !== undefined ? group.min : 0));
-            inputField.setAttribute("max", (group.max !== undefined ? group.max : 180));
+            inputField.setAttribute("min", group.min !== undefined ? group.min : 0);
+            inputField.setAttribute("max", group.max !== undefined ? group.max : 180);
+            inputField.setAttribute("step", group.step !== undefined ? group.step : 1);
 
             inputField.oninput = function (event) {
-                slider.value = event.target.value;
+                var maxAllowedValue = parseInt(inputField.max);
+                var minAllowedValue = parseInt(inputField.min);
+
+                var targetValue = parseInt(event.target.value);
+                if (isNaN(targetValue)) {
+                    console.log("Warning: SliderRadian( onInput ) - " + group.id + ": received NaN value.");
+                    return;
+                }
+
+                if (targetValue > maxAllowedValue) {
+                    targetValue = maxAllowedValue;
+                } else if (targetValue < minAllowedValue) {
+                    targetValue = minAllowedValue;
+                }
+
+                inputField.value = targetValue;
+                slider.value = inputField.value;
                 self.webBridgeSync(group.id, slider.value * RADIANS_PER_DEGREE);
             };
             inputField.onchange = inputField.oninput;
@@ -578,7 +621,6 @@ HifiEntityUI.prototype = {
                 } else {
                     inputField.value = Math.ceil(event.target.value);
                 }
-                self.webBridgeSync(group.id, slider.value * RADIANS_PER_DEGREE);
             };
             var degrees = document.createElement("label");
             degrees.innerHTML = "&#176;";
@@ -591,25 +633,56 @@ HifiEntityUI.prototype = {
         } else {
             // Must then be Float
             inputField.setAttribute("min", group.min !== undefined ? group.min : 0);
-            slider.setAttribute("step", 0.01);
+            inputField.setAttribute("max", group.max !== undefined ? group.max : 1);
+            inputField.setAttribute("step", group.step !== undefined ? group.step : 0.01);
 
             slider.setAttribute("min", group.min !== undefined ? group.min : 0);
             slider.setAttribute("max", group.max !== undefined ? group.max : 1);
-            slider.setAttribute("step", 0.01);
+            slider.setAttribute("step", group.step !== undefined ? group.step : 0.01);
 
             inputField.oninput = function (event) {
-                if (parseFloat(event.target.value) > parseFloat(slider.getAttribute("max")) && group.max !== 1) {
-                    slider.setAttribute("max", event.target.value);
+                var maxAllowedValue = parseFloat(inputField.max);
+                var minAllowedValue = parseFloat(inputField.min);
+
+                var targetValue = parseFloat(event.target.value);
+                if (isNaN(targetValue)) {
+                    console.log("Warning: SliderFloat( onInput ) - " + group.id + ": received NaN value.");
+                    return;
                 }
 
-                slider.value = event.target.value;
+                if (targetValue > maxAllowedValue) {
+                    // Allow overriding of previous max value
+                    if (group.max !== 1) {
+                        slider.setAttribute("max", targetValue);
+                        inputField.setAttribute("max", targetValue);
+                    } else { // ...Sanity check and clamp targetValue
+                        targetValue = maxAllowedValue;
+                    }
+                } else if (targetValue < minAllowedValue) {
+                    targetValue = minAllowedValue;
+                }
+
+                inputField.value = targetValue;
+                slider.value = inputField.value;
                 self.webBridgeSync(group.id, slider.value);
                 // bind web sock update here.
             };
+
             inputField.onchange = inputField.oninput;
+
+            inputField.onblur = function(event) {
+                var targetValue = parseFloat(event.target.value);
+                if (isNaN(targetValue)) {
+                    console.log("Warning: SliderFloat( onBlur ) - " + group.id + ": received NaN value.");
+                    targetValue = 1.0;
+                }
+
+                targetValue = helperRoundNumberWithPrecision(targetValue, 2);
+                inputField.value = targetValue.toPrecision(targetValue < 1 ? 2 : 3);
+            };
+
             slider.oninput = function (event) {
                 inputField.value = event.target.value;
-                self.webBridgeSync(group.id, inputField.value);
             };
 
             inputField.id = group.id;
