@@ -542,10 +542,7 @@ var toolBar = (function () {
             that.toggle();
         });
 
-        addButton("importEntitiesButton", function() {
-            Window.browseChanged.connect(onFileOpenChanged);
-            Window.browseAsync("Select Model to Import", "", "*.json");
-        });
+        addButton("importEntitiesButton", invokeWindowImportEntityPrompt);
 
         addButton("openAssetBrowserButton", function() {
             Window.showAssetServer();
@@ -1624,6 +1621,11 @@ function onPromptTextChanged(prompt) {
     }
 }
 
+function invokeWindowImportEntityPrompt() {
+    Window.browseChanged.connect(onFileOpenChanged);
+    Window.browseAsync("Select Model to Import", "", "*.json *.html");
+}
+
 function handeMenuEvent(menuItem) {
     if (menuItem === "Allow Selecting of Small Models") {
         allowSmallModels = Menu.isOptionChecked("Allow Selecting of Small Models");
@@ -1646,8 +1648,7 @@ function handeMenuEvent(menuItem) {
         }
     } else if (menuItem === "Import Entities" || menuItem === "Import Entities from URL") {
         if (menuItem === "Import Entities") {
-            Window.browseChanged.connect(onFileOpenChanged);
-            Window.browseAsync("Select Model to Import", "", "*.json");
+            invokeWindowImportEntityPrompt();
         } else {
             Window.promptTextChanged.connect(onPromptTextChanged);
             Window.promptAsync("URL of SVO to import", "");
