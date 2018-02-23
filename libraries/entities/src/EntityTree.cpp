@@ -31,6 +31,7 @@
 #include "VariantMapToScriptValue.h"
 
 #include "AddEntityOperator.h"
+#include "AFrameReader.h"
 #include "UpdateEntityOperator.h"
 #include "QVariantGLM.h"
 #include "EntitiesLogging.h"
@@ -2414,6 +2415,30 @@ bool EntityTree::readFromMap(QVariantMap& map) {
             qCDebug(entities) << "adding Entity failed:" << entityItemID << properties.getType();
             success = false;
         }
+    }
+
+    return success;
+}
+
+bool EntityTree::readFromAframe(const QByteArray &fileData) {
+    bool success = true;
+
+    AFrameReader reader;
+    success = reader.read(fileData);
+    if (success) {
+        const AFrameReader::AFramePropList &propData = reader.getPropData();
+        foreach(const EntityItemProperties &properties, propData) {
+
+            EntityItemID entityItemID = EntityItemID(QUuid::createUuid());
+            EntityItemPointer entity = addEntity(entityItemID, properties);
+            if (!entity) {
+                qCDebug(entities) << "adding Entity failed:" << entityItemID << properties.getType();
+                success = false;
+            }
+
+        }
+    } else {
+        qCDebug(entities) << "Failed to read AFrame data - " << reader.getErrorString();
     }
 
     return success;

@@ -805,6 +805,13 @@ bool Octree::readFromURL(const QString& urlString) {
         return false;
     }
 
+    const int extensionStartIndex = urlString.lastIndexOf('.');
+    QString fileExtension("");
+    if (extensionStartIndex != -1) {
+        QStringRef extensionRef(&urlString, extensionStartIndex, urlString.length() - extensionStartIndex);
+        fileExtension = extensionRef.toString();
+    }
+
     QEventLoop loop;
     connect(request.get(), &ResourceRequest::finished, &loop, &QEventLoop::quit);
     request->send();
@@ -825,11 +832,11 @@ bool Octree::readFromURL(const QString& urlString) {
     }
 
     QDataStream inputStream(data);
-    return readFromStream(data.size(), inputStream, marketplaceID);
+    return readFromStream(data.size(), inputStream, marketplaceID, fileExtension);
 }
 
 
-bool Octree::readFromStream(uint64_t streamLength, QDataStream& inputStream, const QString& marketplaceID) {
+bool Octree::readFromStream(uint64_t streamLength, QDataStream& inputStream, const QString& marketplaceID, const QString & fileExtension) {
     // decide if this is binary SVO or JSON-formatted SVO
     QIODevice *device = inputStream.device();
     char firstChar;
@@ -840,6 +847,12 @@ bool Octree::readFromStream(uint64_t streamLength, QDataStream& inputStream, con
         qCWarning(octree) << "Reading from binary SVO no longer supported";
         return false;
     } else {
+
+        if (fileExtension == ".html"){
+            qCDebug(octree) << "Reading from HTML Stream length:" << streamLength;
+            return readHTMLFromStream(streamLength, inputStream, marketplaceID);
+        }
+
         qCDebug(octree) << "Reading from JSON SVO Stream length:" << streamLength;
         return readJSONFromStream(streamLength, inputStream, marketplaceID);
     }
@@ -896,6 +909,35 @@ bool Octree::readJSONFromStream(uint64_t streamLength, QDataStream& inputStream,
     QVariant asVariant = asDocument.toVariant();
     QVariantMap asMap = asVariant.toMap();
     bool success = readFromMap(asMap);
+    delete[] rawData;
+    return success;
+}
+
+const int READ_HTML_BUFFER_SIZE = 2048;
+
+bool Octree::readHTMLFromStream(uint64_t streamLength, QDataStream& inputStream, const QString& marketplaceID /*=""*/) {
+    // if the data is gzipped we may not have a useful bytesAvailable() result, so just keep reading until
+    // we get an eof.  Leave streamLength parameter for consistency.
+
+    QByteArray buffer;
+    char* rawData = new char[READ_HTML_BUFFER_SIZE];
+    while (!inputStream.atEnd()) {
+        int got = inputStream.readRawData(rawData, READ_HTML_BUFFER_SIZE - 1);
+        if (got < 0) {
+            qCritical() << "error while reading from html stream";
+            delete[] rawData;
+            return false;
+        }
+        if (got == 0) {
+            break;
+        }
+        buffer += QByteArray(rawData, got);
+    }
+
+    //TODO_21698:  What about marketplaceID?
+
+    bool success = readFromAframe(buffer);
+    
     delete[] rawData;
     return success;
 }

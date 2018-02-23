@@ -74,6 +74,7 @@ void EntityItemProperties::debugDump() const {
     qCDebug(entities) << "    _type=" << EntityTypes::getEntityTypeName(_type);
     qCDebug(entities) << "   _id=" << _id;
     qCDebug(entities) << "   _idSet=" << _idSet;
+    qCDebug(entities) << "   _name=" << _name;
     qCDebug(entities) << "   _position=" << _position.x << "," << _position.y << "," << _position.z;
     qCDebug(entities) << "   _dimensions=" << getDimensions();
     qCDebug(entities) << "   _modelURL=" << _modelURL;
