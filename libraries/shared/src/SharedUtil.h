@@ -78,8 +78,8 @@ T* globalInstance(const char* propertyName, Args&&... args) {
 const int BYTES_PER_COLOR = 3;
 const int BYTES_PER_FLAGS = 1;
 typedef unsigned char colorPart;
-typedef unsigned char nodeColor[BYTES_PER_COLOR + BYTES_PER_FLAGS];
-typedef unsigned char rgbColor[BYTES_PER_COLOR];
+typedef colorPart nodeColor[BYTES_PER_COLOR + BYTES_PER_FLAGS];
+typedef colorPart rgbColor[BYTES_PER_COLOR];
 
 inline QDebug& operator<<(QDebug& dbg, const rgbColor& c) {
     dbg.nospace() << "{type='rgbColor'"
@@ -91,9 +91,9 @@ inline QDebug& operator<<(QDebug& dbg, const rgbColor& c) {
 }
 
 struct xColor {
-    unsigned char red;
-    unsigned char green;
-    unsigned char blue;
+    colorPart red;
+    colorPart green;
+    colorPart blue;
 };
 
 inline QDebug& operator<<(QDebug& dbg, const xColor& c) {
