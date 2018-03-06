@@ -11,11 +11,30 @@
 #define hifi_AFrameReader_h
 
 #include <QXmlStreamReader>
+#include <QMap>
 
 class EntityItemProperties;
 
 class AFrameReader {
 public:
+
+
+    struct AFrameProcessor {
+        QString propName;
+        typedef std::function<void(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties)> conversionHandler;
+        conversionHandler processFunc;
+    };
+
+    typedef QSet<QString> TagList;
+
+    // attribute name -> handler
+    typedef QMap< QString, AFrameProcessor > AFrameElementHandlerTable;
+    // element type to handler directory
+    typedef QMap< QString, AFrameElementHandlerTable> AFrameConversionTable;
+
+    static AFrameConversionTable commonConversionTable;
+    static TagList supportAFrameTypes;
+    static void registerAFrameConversionHandlers();
 
     typedef QList<EntityItemProperties> AFramePropList;
 

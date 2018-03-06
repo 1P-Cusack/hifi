@@ -71,6 +71,7 @@ EntityTree::EntityTree(bool shouldReaverage) :
     resetClientEditStats();
 
     EntityItem::retrieveMarketplacePublicKey();
+    AFrameReader::registerAFrameConversionHandlers();
 }
 
 EntityTree::~EntityTree() {

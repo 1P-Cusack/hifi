@@ -10,7 +10,156 @@
 
 #include "AFrameReader.h"
 
+#include <QList>
+
 #include "EntityItemProperties.h"
+#include "ShapeEntityItem.h"
+
+AFrameReader::AFrameConversionTable AFrameReader::commonConversionTable = AFrameReader::AFrameConversionTable();
+AFrameReader::TagList AFrameReader::supportAFrameTypes = AFrameReader::TagList();
+
+void helper_parseVector(int numDimensions, const QStringList &dimList, float defaultVal, QList<float> &outList) {
+    const int listSize = dimList.size();
+    for (int index = 0; index < numDimensions; ++index) {
+        if (listSize > index) {
+            outList.push_back(dimList.at(index).toFloat());
+        }
+        else {
+            outList.push_back(defaultVal);
+        }
+    }
+}
+
+void parseVec3(const QXmlStreamAttributes &attributes, const QString &attributeName, const QRegExp &splitExp, float defaultValue, QList<float> &valueList) {
+    QStringList stringList = attributes.value(attributeName).toString().split(splitExp, QString::SkipEmptyParts);
+    helper_parseVector(3, stringList, defaultValue, valueList);
+}
+
+void processPosition(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    QList<float> values;
+    parseVec3(elementAttributes, "position", QRegExp("\\s+"), 0.0f, values);
+    properties.setPosition(glm::vec3(values.at(0), values.at(1), values.at(2)));
+}
+
+void processRotation(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    QList<float> values;
+    parseVec3(elementAttributes, "rotation", QRegExp("\\s+"), 0.0f, values);
+    properties.setRotation(glm::vec3(values.at(0), values.at(1), values.at(2)));
+}
+
+void processRadius(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (properties.dimensionsChanged()) {
+        return;
+    }
+
+    QStringList stringList = elementAttributes.value("radius").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
+    float radius = 0.1f;
+    if (stringList.size() > 0) {
+        radius = stringList.at(0).toFloat();
+    }
+
+    const float sphericalDimension = radius * 2;
+    properties.setDimensions(glm::vec3(sphericalDimension, sphericalDimension, sphericalDimension));
+}
+
+void processColor(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (!elementAttributes.hasAttribute("color")) {
+        return;
+    }
+
+    QString colorStr = elementAttributes.value("color").toString();
+    const int hashIndex = colorStr.indexOf('#');
+    if (hashIndex == 0) {
+        colorStr = colorStr.mid(1);
+    }
+    else if (hashIndex > 0) {
+        colorStr = colorStr.remove(hashIndex, 1);
+    }
+    const int hexValue = colorStr.toInt(Q_NULLPTR, 16);
+    properties.setColor({ colorPart(hexValue >> 16),
+        colorPart((hexValue & 0x00FF00) >> 8),
+        colorPart(hexValue & 0x0000FF) });
+}
+
+void processDimensions(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (properties.dimensionsChanged()) {
+        return;
+    }
+
+    QRegExp splitExp("\\s+");
+    const float defaultDim = 0.1f;
+    float dimensionX = defaultDim;
+    float dimensionY = defaultDim;
+    float dimensionZ = defaultDim;
+
+    // Note:  AFrame specifies the dimension components separately, so when we find one
+    //        we're going to automatically test for the others so we have the information
+    //        at the same time.
+    QStringList stringList = elementAttributes.value("width").toString().split(splitExp, QString::SkipEmptyParts);
+    if (stringList.size() > 0) {
+        dimensionX = stringList.at(0).toFloat();
+    }
+
+    stringList = elementAttributes.value("height").toString().split(splitExp, QString::SkipEmptyParts);
+    if (stringList.size() > 0) {
+        dimensionY = stringList.at(0).toFloat();
+    }
+
+    stringList = elementAttributes.value("depth").toString().split(splitExp, QString::SkipEmptyParts);
+    if (stringList.size() > 0) {
+        dimensionZ = stringList.at(0).toFloat();
+    }
+
+    properties.setDimensions(glm::vec3(dimensionX, dimensionY, dimensionZ));
+}
+
+#define REGISTER_SUPPORTED_AFRAME_ELEMENT(aframeType) \
+    QString normalizedTag = QString(aframeType).toLower(); \
+    if (!supportAFrameTypes.contains(normalizedTag) { \
+        supportAFrameTypes.insert(normalizedTag); \
+    } else { \
+        qWarning() << "AFrameReader Element " << normalizedTag << " already registered as supported."; \
+    }
+
+#define REGISTER_COMMON_ATTRIBUTE(name, handlerFunc) { \
+    if (!commonConversionTable.contains("common_elements")) { \
+        commonConversionTable.insert("common_elements", AFrameElementHandlerTable()); \
+    } \
+    \
+    AFrameElementHandlerTable &elementHandlers = commonConversionTable["common_elements"]; \
+    if (!elementHandlers.contains(name)) { \
+        elementHandlers[name] = { name, AFrameProcessor::conversionHandler(&handlerFunc) }; \
+    } else { \
+        qWarning() << "AFrameReader already has handler registered for " << "common_elements" << " attribute: " << name; \
+    } \
+}
+
+#define REGISTER_ELEMENT_ATTRIBUTE(elementName, attributeName, handlerFunc) { \
+    if (!commonConversionTable.contains(elementName)) { \
+        commonConversionTable.insert(elementName, AFrameElementHandlerTable()); \
+    } \
+    \
+    AFrameElementHandlerTable &elementHandlers = commonConversionTable[elementName]; \
+    if (!elementHandlers.contains(attributeName)) { \
+        elementHandlers[attributeName] = { attributeName, AFrameProcessor::conversionHandler(&handlerFunc) }; \
+    } else { \
+        qWarning() << "AFrameReader already has a handler registered for " << elementName << " attribute: " << attributeName; \
+    } \
+}
+void AFrameReader::registerAFrameConversionHandlers() {
+
+    //REGISTER_SUPPORTED_AFRAME_ELEMENT("a-box");
+    //REGISTER_SUPPORTED_AFRAME_ELEMENT("a-cylinder");
+    //REGISTER_SUPPORTED_AFRAME_ELEMENT("a-plane");
+
+    REGISTER_COMMON_ATTRIBUTE("position", processPosition);
+    REGISTER_COMMON_ATTRIBUTE("rotation", processRotation);
+    REGISTER_COMMON_ATTRIBUTE("color", processColor);
+    REGISTER_COMMON_ATTRIBUTE("width", processDimensions);
+    REGISTER_COMMON_ATTRIBUTE("height", processDimensions);
+    REGISTER_COMMON_ATTRIBUTE("depth", processDimensions);
+    REGISTER_ELEMENT_ATTRIBUTE("a-sphere", "radius", processRadius);
+}
 
 bool AFrameReader::read(const QByteArray &aframeData) {
     m_reader.addData(aframeData);
@@ -32,7 +181,7 @@ bool AFrameReader::read(const QByteArray &aframeData) {
     }
 
     if (m_reader.hasError()) {
-        qDebug() << "AFrameReader::read encountered error: " << m_reader.errorString();
+        qWarning() << "AFrameReader::read encountered error: " << m_reader.errorString();
     }
 
     return false;
@@ -44,11 +193,11 @@ QString AFrameReader::getErrorString() const {
 
 bool AFrameReader::processScene() {
 
-    if (!m_reader.isStartElement() || m_reader.name() != "a-scene"){
+    if (!m_reader.isStartElement() || m_reader.name() != "a-scene") {
 
         qDebug() << "AFrameReader::processScene expects element name a-scene, but element name was: " << m_reader.name();
         return false;
-    } 
+    }
 
     m_propData.clear();
     bool success = true;
@@ -63,54 +212,64 @@ bool AFrameReader::processScene() {
 
         if (m_reader.isStartElement())
         {
-            QStringRef elementName = m_reader.name();
+            const QString &elementName = m_reader.name().toString();
             static unsigned int sUnsubEntityCount = 0;
+            EntityItemProperties hifiProps;
+
             if (elementName == "a-box") {
-                EntityItemProperties hifiProps;
                 hifiProps.setType(EntityTypes::Box);
+            } else if (elementName == "a-plane") {
+                hifiProps.setType(EntityTypes::Shape);
+                hifiProps.setShape(entity::stringFromShape(entity::Shape::Quad));
+            } else if (elementName == "a-cylinder") {
+                hifiProps.setType(EntityTypes::Shape);
+                hifiProps.setShape(entity::stringFromShape(entity::Shape::Cylinder));
+            } else if (elementName == "a-sphere") {
+                hifiProps.setType(EntityTypes::Shape);
+                hifiProps.setShape(entity::stringFromShape(entity::Shape::Sphere));
+            }
 
-                //EntityItemID entityItemID = EntityItemID(QUuid::createUuid());
-
+            if (hifiProps.getType() != EntityTypes::Unknown) {
                 // Get Attributes
                 QXmlStreamAttributes attributes = m_reader.attributes();
                 // For each attribute, process and record for entity properties.
                 if (attributes.hasAttribute("id")) {
                     hifiProps.setName(attributes.value("id").toString());
-                } else {
+                }
+                else {
                     hifiProps.setName(elementName + "_" + QString::number(sUnsubEntityCount++));
                 }
 
-                if (attributes.hasAttribute("color")) {
-                    QString colorStr = attributes.value("color").toString();
-                    const int hashIndex = colorStr.indexOf('#');
-                    if (hashIndex == 0) {
-                        colorStr = colorStr.mid(1);
-                    } else if (hashIndex > 0) {
-                        colorStr = colorStr.remove(hashIndex, 1);
+                const AFrameElementHandlerTable &elementHandlers = commonConversionTable["common_elements"];
+                QStringList uncommonElements;
+                for each (QXmlStreamAttribute currentAttribute in attributes)
+                {
+                    const QString attributeName = currentAttribute.name().toString();
+                    if (!elementHandlers.contains(attributeName)) {
+
+                        if (attributeName != "id") {
+                            qDebug() << "AFrameReader - Warning: Missing handler for " << elementName << " attribute: " << attributeName;
+                            uncommonElements.push_back(attributeName);
+                        }
+
+                        continue;
                     }
-                    const int hexValue = colorStr.toInt(Q_NULLPTR, 16);
-                    hifiProps.setColor({colorPart(hexValue >> 16),
-                        colorPart((hexValue & 0x00FF00) >> 8),
-                        colorPart(hexValue & 0x0000FF)});
+
+                    elementHandlers[attributeName].processFunc(attributes, hifiProps);
                 }
 
-                if (attributes.hasAttribute("position")) {
-                    QStringList stringList = attributes.value("position").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
-                    const int numAttributeDimensions = stringList.size();
-                    const float xPosition = numAttributeDimensions >= 1 ? stringList.at(0).toFloat() : 0.0f;
-                    const float yPosition = numAttributeDimensions >= 2 ? stringList.at(1).toFloat() : 0.0f;
-                    const float zPosition = numAttributeDimensions >= 3 ? stringList.at(2).toFloat() : 0.0f;
-                    hifiProps.setPosition(glm::vec3( xPosition, yPosition, zPosition ));
-                }
+                if (commonConversionTable.contains(elementName)) {
+                    const AFrameElementHandlerTable &elementSpecificHandlers = commonConversionTable[elementName];
+                    for each (QString elementAttribute in uncommonElements) {
+                        if (!elementHandlers.contains(elementAttribute)) {
 
-                if (attributes.hasAttribute("rotation")) {
-                    qDebug() << "Box - Rotation String: " << attributes.value("rotation").toString();
-                    QStringList stringList = attributes.value("rotation").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
-                    const int numAttributeDimensions = stringList.size();
-                    const float xRotation = numAttributeDimensions >= 1 ? stringList.at(0).toFloat() : 0.0f;
-                    const float yRotation = numAttributeDimensions >= 2 ? stringList.at(1).toFloat() : 0.0f;
-                    const float zRotation = numAttributeDimensions >= 3 ? stringList.at(2).toFloat() : 0.0f;
-                    hifiProps.setRotation(glm::quat(glm::vec3(xRotation,yRotation,zRotation)));
+                            qDebug() << "AFrameReader - Error: Missing handler for " << elementName << " attribute: " << elementAttribute;
+
+                            continue;
+                        }
+
+                        elementHandlers[elementAttribute].processFunc(attributes, hifiProps);
+                    }
                 }
 
                 if (hifiProps.getClientOnly()) {
@@ -119,6 +278,7 @@ bool AFrameReader::processScene() {
                     hifiProps.setOwningAvatarID(myNodeID);
                 }
 
+                // TODO_WL21698:  Remove Debug Dump
                 qDebug() << "-------------------------------------------------";
                 hifiProps.debugDump();
                 qDebug() << "*************************************************";
@@ -127,14 +287,14 @@ bool AFrameReader::processScene() {
                 qDebug() << "-------------------------------------------------";
 
                 m_propData.push_back(hifiProps);
-                return true;
             }
         }
     }
 
     if (m_reader.hasError()) {
-        qDebug() << "AFrameReader::read encountered error: " << m_reader.errorString();
+        qWarning() << "AFrameReader::read encountered error: " << m_reader.errorString();
+        success = false;
     }
 
-    return false;
+    return success;
 }
