@@ -47,19 +47,42 @@ void processRotation(const QXmlStreamAttributes &elementAttributes, EntityItemPr
     properties.setRotation(glm::vec3(values.at(0), values.at(1), values.at(2)));
 }
 
-void processRadius(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+float helper_parseRadius(const QXmlStreamAttributes &elementAttributes, const float defaultValue ) {
+ 
+    QStringList stringList = elementAttributes.value("radius").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
+    if (stringList.size() > 0) {
+        return stringList.at(0).toFloat();
+    }
+
+    return defaultValue;
+}
+
+void processSphereRadius(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     if (properties.dimensionsChanged()) {
         return;
     }
 
-    QStringList stringList = elementAttributes.value("radius").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
-    float radius = 0.1f;
+    const float radius = helper_parseRadius(elementAttributes, 0.1f);
+    const float sphericalDimension = radius * 2;
+
+    properties.setDimensions(glm::vec3(sphericalDimension, sphericalDimension, sphericalDimension));
+}
+
+void processCylinderRadius(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    // A-Frame cylinders are Y-Major, so height is the Y and radius*2 is the full extent for x & z.
+    // Note:  We don't care if the dimensions were already set as this is expected to override it given
+    //        the element specific nature of the parsing which is handle after common attributes
+    //        like dimension(height/width/depth)
+    const float radius = helper_parseRadius(elementAttributes, 0.1f);
+    const float diameter = radius * 2;
+    float dimensionY = 0.1f;
+
+    QStringList stringList = elementAttributes.value("height").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
     if (stringList.size() > 0) {
-        radius = stringList.at(0).toFloat();
+        dimensionY = stringList.at(0).toFloat();
     }
 
-    const float sphericalDimension = radius * 2;
-    properties.setDimensions(glm::vec3(sphericalDimension, sphericalDimension, sphericalDimension));
+    properties.setDimensions(glm::vec3(diameter, dimensionY, diameter));
 }
 
 void processColor(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
@@ -158,7 +181,8 @@ void AFrameReader::registerAFrameConversionHandlers() {
     REGISTER_COMMON_ATTRIBUTE("width", processDimensions);
     REGISTER_COMMON_ATTRIBUTE("height", processDimensions);
     REGISTER_COMMON_ATTRIBUTE("depth", processDimensions);
-    REGISTER_ELEMENT_ATTRIBUTE("a-sphere", "radius", processRadius);
+    REGISTER_ELEMENT_ATTRIBUTE("a-sphere", "radius", processSphereRadius);
+    REGISTER_ELEMENT_ATTRIBUTE("a-cylinder", "radius", processCylinderRadius);
 }
 
 bool AFrameReader::read(const QByteArray &aframeData) {
@@ -242,8 +266,7 @@ bool AFrameReader::processScene() {
 
                 const AFrameElementHandlerTable &elementHandlers = commonConversionTable["common_elements"];
                 QStringList uncommonElements;
-                for each (QXmlStreamAttribute currentAttribute in attributes)
-                {
+                for each (QXmlStreamAttribute currentAttribute in attributes) {
                     const QString attributeName = currentAttribute.name().toString();
                     if (!elementHandlers.contains(attributeName)) {
 
