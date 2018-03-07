@@ -248,7 +248,6 @@ bool AFrameReader::processScene() {
                     if (!elementHandlers.contains(attributeName)) {
 
                         if (attributeName != "id") {
-                            qDebug() << "AFrameReader - Warning: Missing handler for " << elementName << " attribute: " << attributeName;
                             uncommonElements.push_back(attributeName);
                         }
 
@@ -261,14 +260,14 @@ bool AFrameReader::processScene() {
                 if (commonConversionTable.contains(elementName)) {
                     const AFrameElementHandlerTable &elementSpecificHandlers = commonConversionTable[elementName];
                     for each (QString elementAttribute in uncommonElements) {
-                        if (!elementHandlers.contains(elementAttribute)) {
+                        if (!elementSpecificHandlers.contains(elementAttribute)) {
 
                             qDebug() << "AFrameReader - Error: Missing handler for " << elementName << " attribute: " << elementAttribute;
 
                             continue;
                         }
 
-                        elementHandlers[elementAttribute].processFunc(attributes, hifiProps);
+                        elementSpecificHandlers[elementAttribute].processFunc(attributes, hifiProps);
                     }
                 }
 
