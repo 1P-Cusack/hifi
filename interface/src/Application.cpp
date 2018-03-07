@@ -146,6 +146,7 @@
 #include <RenderableEntityItem.h>
 #include <procedural/ProceduralSkybox.h>
 
+#include "AFrameReader.h"
 #include "AudioClient.h"
 #include "audio/AudioScope.h"
 #include "avatar/AvatarManager.h"
@@ -1052,6 +1053,7 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
     _controllerScriptingInterface = dynamic_cast<ControllerScriptingInterface*>(controllerScriptingInterface);
 
     _entityClipboard->createRootElement();
+    AFrameReader::registerAFrameConversionHandlers();
 
 #ifdef Q_OS_WIN
     installNativeEventFilter(&MyNativeEventFilter::getInstance());
