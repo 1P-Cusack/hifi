@@ -65,6 +65,9 @@ public:
 
 protected:
 
+    typedef QHash<QString, int> ElementUnnamedCounts;
+    static ElementUnnamedCounts elementUnknownCounts;
+
     bool processScene();
 
     QXmlStreamReader m_reader;

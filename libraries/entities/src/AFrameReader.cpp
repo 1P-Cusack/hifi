@@ -20,6 +20,7 @@ const char COMMON_ELEMENTS_KEY[] = "common_elements";
 
 AFrameReader::AFrameConversionTable AFrameReader::commonConversionTable = AFrameReader::AFrameConversionTable();
 AFrameReader::TagList AFrameReader::supportedAFrameElements = AFrameReader::TagList();
+AFrameReader::ElementUnnamedCounts AFrameReader::elementUnknownCounts = AFrameReader::ElementUnnamedCounts();
 
 void helper_parseVector(int numDimensions, const QStringList &dimList, float defaultVal, QList<float> &outList) {
     const int listSize = dimList.size();
@@ -288,7 +289,6 @@ bool AFrameReader::processScene() {
         if (m_reader.isStartElement())
         {
             const QString &elementName = m_reader.name().toString();
-            static unsigned int sUnsubEntityCount = 0;
             EntityItemProperties hifiProps;
             const AFrameType elementType = getTypeForElementName(elementName);
             if (elementType == AFRAMETYPE_COUNT) {
@@ -331,7 +331,9 @@ bool AFrameReader::processScene() {
                     hifiProps.setName(attributes.value("id").toString());
                 }
                 else {
-                    hifiProps.setName(elementName + "_" + QString::number(sUnsubEntityCount++));
+                    const int elementUnsubCount = elementUnknownCounts[elementName]+1; //Unnamed count should be 1-based
+                    hifiProps.setName(elementName + "_" + QString::number(elementUnsubCount));
+                    elementUnknownCounts[elementName] = elementUnsubCount;
                 }
 
                 const AFrameElementHandlerTable &elementHandlers = commonConversionTable[COMMON_ELEMENTS_KEY];
@@ -355,7 +357,8 @@ bool AFrameReader::processScene() {
                     for each (QString elementAttribute in uncommonElements) {
                         if (!elementSpecificHandlers.contains(elementAttribute)) {
 
-                            qDebug() << "AFrameReader - Error: Missing handler for " << elementName << " attribute: " << elementAttribute;
+                            qDebug() << "AFrameReader - Error: Missing handler for " << elementName 
+                                << " attribute: " << elementAttribute;
 
                             continue;
                         }
