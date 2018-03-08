@@ -18,25 +18,45 @@ class EntityItemProperties;
 class AFrameReader {
 public:
 
+    enum AFrameType {
+        AFRAMETYPE_BOX,
+        AFRAMETYPE_CIRCLE,
+        AFRAMETYPE_CONE,
+        AFRAMETYPE_CYLINDER,
+        AFRAMETYPE_IMAGE,
+        AFRAMETYPE_LIGHT,
+        AFRAMETYPE_MODEL_GLTF,
+        AFRAMETYPE_MODEL_OBJ,
+        AFRAMETYPE_PLANE,
+        AFRAMETYPE_SKY,
+        AFRAMETYPE_SPHERE,
+        AFRAMETYPE_TETRAHEDRON,
+        AFRAMTYPE_TEXT,
+        AFRAMETYPE_TRIANGLE,
+
+        AFRAMETYPE_COUNT
+    };
+
 
     struct AFrameProcessor {
         QString propName;
-        typedef std::function<void(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties)> conversionHandler;
+        typedef std::function<void(const AFrameType elementType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties)> conversionHandler;
         conversionHandler processFunc;
     };
 
-    typedef QSet<QString> TagList;
-
+    typedef QList<EntityItemProperties> AFramePropList;
+    typedef QVector<QString> TagList;
     // attribute name -> handler
     typedef QMap< QString, AFrameProcessor > AFrameElementHandlerTable;
-    // element type to handler directory
+    // element name to handler directory
     typedef QMap< QString, AFrameElementHandlerTable> AFrameConversionTable;
 
     static AFrameConversionTable commonConversionTable;
-    static TagList supportAFrameTypes;
-    static void registerAFrameConversionHandlers();
+    static TagList supportedAFrameElements;
 
-    typedef QList<EntityItemProperties> AFramePropList;
+    static void registerAFrameConversionHandlers();
+    static QString getElementNameForType(AFrameType elementType);
+    static AFrameType getTypeForElementName(const QString &elementName);
 
     bool read(const QByteArray &aframeData);
     QString getErrorString() const;

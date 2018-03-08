@@ -15,8 +15,11 @@
 #include "EntityItemProperties.h"
 #include "ShapeEntityItem.h"
 
+const char AFRAME_SCENE[] = "a-scene";
+const char COMMON_ELEMENTS_KEY[] = "common_elements";
+
 AFrameReader::AFrameConversionTable AFrameReader::commonConversionTable = AFrameReader::AFrameConversionTable();
-AFrameReader::TagList AFrameReader::supportAFrameTypes = AFrameReader::TagList();
+AFrameReader::TagList AFrameReader::supportedAFrameElements = AFrameReader::TagList();
 
 void helper_parseVector(int numDimensions, const QStringList &dimList, float defaultVal, QList<float> &outList) {
     const int listSize = dimList.size();
@@ -35,13 +38,13 @@ void parseVec3(const QXmlStreamAttributes &attributes, const QString &attributeN
     helper_parseVector(3, stringList, defaultValue, valueList);
 }
 
-void processPosition(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processPosition(const AFrameReader::AFrameType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     QList<float> values;
     parseVec3(elementAttributes, "position", QRegExp("\\s+"), 0.0f, values);
     properties.setPosition(glm::vec3(values.at(0), values.at(1), values.at(2)));
 }
 
-void processRotation(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processRotation(const AFrameReader::AFrameType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     QList<float> values;
     parseVec3(elementAttributes, "rotation", QRegExp("\\s+"), 0.0f, values);
     properties.setRotation(glm::vec3(values.at(0), values.at(1), values.at(2)));
@@ -85,7 +88,25 @@ void processCylinderRadius(const QXmlStreamAttributes &elementAttributes, Entity
     properties.setDimensions(glm::vec3(diameter, dimensionY, diameter));
 }
 
-void processColor(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processRadius(const AFrameReader::AFrameType elementType, 
+    const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    switch (elementType) {
+        case AFrameReader::AFRAMETYPE_CYLINDER: {
+            processCylinderRadius(elementAttributes, properties);
+            return;
+        }
+        case AFrameReader::AFRAMETYPE_SPHERE: {
+            processSphereRadius(elementAttributes, properties);
+            return;
+        }
+        default: {
+            qWarning() << "AFrameReader triggered processRadius for unknown/invalid elementType: " << elementType;
+            break;
+        }
+    }
+}
+
+void processColor(const AFrameReader::AFrameType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     if (!elementAttributes.hasAttribute("color")) {
         return;
     }
@@ -104,7 +125,7 @@ void processColor(const QXmlStreamAttributes &elementAttributes, EntityItemPrope
         colorPart(hexValue & 0x0000FF) });
 }
 
-void processDimensions(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processDimensions(const AFrameReader::AFrameType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     if (properties.dimensionsChanged()) {
         return;
     }
@@ -136,44 +157,53 @@ void processDimensions(const QXmlStreamAttributes &elementAttributes, EntityItem
     properties.setDimensions(glm::vec3(dimensionX, dimensionY, dimensionZ));
 }
 
-#define REGISTER_SUPPORTED_AFRAME_ELEMENT(aframeType) \
-    QString normalizedTag = QString(aframeType).toLower(); \
-    if (!supportAFrameTypes.contains(normalizedTag) { \
-        supportAFrameTypes.insert(normalizedTag); \
-    } else { \
-        qWarning() << "AFrameReader Element " << normalizedTag << " already registered as supported."; \
-    }
-
 #define REGISTER_COMMON_ATTRIBUTE(name, handlerFunc) { \
-    if (!commonConversionTable.contains("common_elements")) { \
-        commonConversionTable.insert("common_elements", AFrameElementHandlerTable()); \
+    if (!commonConversionTable.contains(COMMON_ELEMENTS_KEY)) { \
+        commonConversionTable.insert(COMMON_ELEMENTS_KEY, AFrameElementHandlerTable()); \
     } \
     \
-    AFrameElementHandlerTable &elementHandlers = commonConversionTable["common_elements"]; \
+    AFrameElementHandlerTable &elementHandlers = commonConversionTable[COMMON_ELEMENTS_KEY]; \
     if (!elementHandlers.contains(name)) { \
         elementHandlers[name] = { name, AFrameProcessor::conversionHandler(&handlerFunc) }; \
     } else { \
-        qWarning() << "AFrameReader already has handler registered for " << "common_elements" << " attribute: " << name; \
+        qWarning() << "AFrameReader already has handler registered for " << COMMON_ELEMENTS_KEY << " attribute: " << name; \
     } \
 }
 
-#define REGISTER_ELEMENT_ATTRIBUTE(elementName, attributeName, handlerFunc) { \
-    if (!commonConversionTable.contains(elementName)) { \
-        commonConversionTable.insert(elementName, AFrameElementHandlerTable()); \
-    } \
-    \
-    AFrameElementHandlerTable &elementHandlers = commonConversionTable[elementName]; \
-    if (!elementHandlers.contains(attributeName)) { \
-        elementHandlers[attributeName] = { attributeName, AFrameProcessor::conversionHandler(&handlerFunc) }; \
+#define REGISTER_ELEMENT_ATTRIBUTE(elementType, attributeName, handlerFunc) { \
+    const QString &elementName = getElementNameForType(elementType); \
+    if (elementName != "") { \
+        if (!commonConversionTable.contains(elementName)) { \
+            commonConversionTable.insert(elementName, AFrameElementHandlerTable()); \
+        } \
+        \
+        AFrameElementHandlerTable &elementHandlers = commonConversionTable[elementName]; \
+        if (!elementHandlers.contains(attributeName)) { \
+            elementHandlers[attributeName] = { attributeName, AFrameProcessor::conversionHandler(&handlerFunc) }; \
+        } else { \
+            qWarning() << "AFrameReader already has a handler registered for " << elementName << " attribute: " << attributeName; \
+        } \
     } else { \
-        qWarning() << "AFrameReader already has a handler registered for " << elementName << " attribute: " << attributeName; \
+        qWarning() << "AFrameReader detected registry of invalid/unknown elementType: " << elementType; \
     } \
 }
 void AFrameReader::registerAFrameConversionHandlers() {
 
-    //REGISTER_SUPPORTED_AFRAME_ELEMENT("a-box");
-    //REGISTER_SUPPORTED_AFRAME_ELEMENT("a-cylinder");
-    //REGISTER_SUPPORTED_AFRAME_ELEMENT("a-plane");
+    supportedAFrameElements.reserve(AFRAMETYPE_COUNT);
+    supportedAFrameElements.push_back("a-box");
+    supportedAFrameElements.push_back("a-circle");
+    supportedAFrameElements.push_back("a-cone");
+    supportedAFrameElements.push_back("a-cylinder");
+    supportedAFrameElements.push_back("a-image");
+    supportedAFrameElements.push_back("a-light");
+    supportedAFrameElements.push_back("a-gltf-model");
+    supportedAFrameElements.push_back("a-obj-model");
+    supportedAFrameElements.push_back("a-plane");
+    supportedAFrameElements.push_back("a-sky");
+    supportedAFrameElements.push_back("a-sphere");
+    supportedAFrameElements.push_back("a-tetrahedron");
+    supportedAFrameElements.push_back("a-text");
+    supportedAFrameElements.push_back("a-triangle");
 
     REGISTER_COMMON_ATTRIBUTE("position", processPosition);
     REGISTER_COMMON_ATTRIBUTE("rotation", processRotation);
@@ -181,8 +211,29 @@ void AFrameReader::registerAFrameConversionHandlers() {
     REGISTER_COMMON_ATTRIBUTE("width", processDimensions);
     REGISTER_COMMON_ATTRIBUTE("height", processDimensions);
     REGISTER_COMMON_ATTRIBUTE("depth", processDimensions);
-    REGISTER_ELEMENT_ATTRIBUTE("a-sphere", "radius", processSphereRadius);
-    REGISTER_ELEMENT_ATTRIBUTE("a-cylinder", "radius", processCylinderRadius);
+    REGISTER_ELEMENT_ATTRIBUTE(AFRAMETYPE_SPHERE, "radius", processRadius);
+    REGISTER_ELEMENT_ATTRIBUTE(AFRAMETYPE_CYLINDER, "radius", processRadius);
+}
+
+QString AFrameReader::getElementNameForType(const AFrameType elementType) {
+    if ((int)elementType < 0 || (int)elementType >= (int)AFRAMETYPE_COUNT) {
+        return "";
+    }
+
+    return supportedAFrameElements[(int)elementType];
+}
+
+AFrameReader::AFrameType AFrameReader::getTypeForElementName(const QString &elementName) {
+    if (elementName.isEmpty()) {
+        return AFRAMETYPE_COUNT;
+    }
+
+    const int elementIndex = supportedAFrameElements.indexOf(elementName);
+    if (elementIndex != -1) {
+        return (AFrameType)elementIndex;
+    }
+
+    return AFRAMETYPE_COUNT;
 }
 
 bool AFrameReader::read(const QByteArray &aframeData) {
@@ -198,7 +249,7 @@ bool AFrameReader::read(const QByteArray &aframeData) {
         if (m_reader.isStartElement())
         {
             QStringRef elementName = m_reader.name();
-            if (elementName == "a-scene") {
+            if (elementName == AFRAME_SCENE) {
                 return processScene();
             }
         }
@@ -239,18 +290,37 @@ bool AFrameReader::processScene() {
             const QString &elementName = m_reader.name().toString();
             static unsigned int sUnsubEntityCount = 0;
             EntityItemProperties hifiProps;
+            const AFrameType elementType = getTypeForElementName(elementName);
+            if (elementType == AFRAMETYPE_COUNT) {
+                // Early Iteration Exit
+                continue;
+            }
 
-            if (elementName == "a-box") {
-                hifiProps.setType(EntityTypes::Box);
-            } else if (elementName == "a-plane") {
-                hifiProps.setType(EntityTypes::Shape);
-                hifiProps.setShape(entity::stringFromShape(entity::Shape::Quad));
-            } else if (elementName == "a-cylinder") {
-                hifiProps.setType(EntityTypes::Shape);
-                hifiProps.setShape(entity::stringFromShape(entity::Shape::Cylinder));
-            } else if (elementName == "a-sphere") {
-                hifiProps.setType(EntityTypes::Shape);
-                hifiProps.setShape(entity::stringFromShape(entity::Shape::Sphere));
+            switch (elementType) {
+                case AFRAMETYPE_BOX: {
+                    hifiProps.setType(EntityTypes::Box);
+                    break;
+                }
+                case AFRAMETYPE_PLANE: {
+                    hifiProps.setType(EntityTypes::Shape);
+                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Quad));
+                    break;
+                }
+                case AFRAMETYPE_CYLINDER: {
+                    hifiProps.setType(EntityTypes::Shape);
+                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Cylinder));
+                    break;
+                }
+                case AFRAMETYPE_SPHERE: {
+                    hifiProps.setType(EntityTypes::Shape);
+                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Sphere));
+                    break;
+                }
+                default: {
+                    // EARLY ITERATION EXIT -- Unknown/invalid type encountered.
+                    qWarning() << "AFrameReader::processScene encountered unknown/invalid element: " << elementName;
+                    continue;
+                }
             }
 
             if (hifiProps.getType() != EntityTypes::Unknown) {
@@ -264,7 +334,7 @@ bool AFrameReader::processScene() {
                     hifiProps.setName(elementName + "_" + QString::number(sUnsubEntityCount++));
                 }
 
-                const AFrameElementHandlerTable &elementHandlers = commonConversionTable["common_elements"];
+                const AFrameElementHandlerTable &elementHandlers = commonConversionTable[COMMON_ELEMENTS_KEY];
                 QStringList uncommonElements;
                 for each (QXmlStreamAttribute currentAttribute in attributes) {
                     const QString attributeName = currentAttribute.name().toString();
@@ -277,7 +347,7 @@ bool AFrameReader::processScene() {
                         continue;
                     }
 
-                    elementHandlers[attributeName].processFunc(attributes, hifiProps);
+                    elementHandlers[attributeName].processFunc(elementType, attributes, hifiProps);
                 }
 
                 if (commonConversionTable.contains(elementName)) {
@@ -290,7 +360,7 @@ bool AFrameReader::processScene() {
                             continue;
                         }
 
-                        elementSpecificHandlers[elementAttribute].processFunc(attributes, hifiProps);
+                        elementSpecificHandlers[elementAttribute].processFunc(elementType, attributes, hifiProps);
                     }
                 }
 
