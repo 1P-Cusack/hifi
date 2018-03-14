@@ -15,12 +15,48 @@
 #include "EntityItemProperties.h"
 #include "ShapeEntityItem.h"
 
+//#define AFRAME_DEBUG_NOTES //< Turns on debug note prints for this file.
+
 const char AFRAME_SCENE[] = "a-scene";
 const char COMMON_ELEMENTS_KEY[] = "common_elements";
+const QVariant INVALID_PROPERTY_DEFAULT = QVariant();
+const float DEFAULT_POSITION_VALUE = 0.0f;
+const float DEFAULT_ROTATION_VALUE = 0.0f;
+const float DEFAULT_GENERAL_VALUE = 1.0f;
 
-AFrameReader::AFrameConversionTable AFrameReader::commonConversionTable = AFrameReader::AFrameConversionTable();
-AFrameReader::TagList AFrameReader::supportedAFrameElements = AFrameReader::TagList();
+const std::array< QString, AFrameReader::AFRAMETYPE_COUNT > AFRAME_ELEMENT_NAMES { {
+    "a-box",
+    "a-circle",
+    "a-cone",
+    "a-cylinder",
+    "a-image",
+    "a-light",
+    "a-gltf-model",
+    "a-obj-model",
+    "a-plane",
+    "a-sky",
+    "a-sphere",
+    "a-tetrahedron",
+    "a-text",
+    "a-triangle"
+    }
+};
+
+const std::array< QString, AFrameReader::AFRAMECOMPONENT_COUNT > AFRAME_COMPONENT_NAMES { {
+    "color",
+    "depth",
+    "height",
+    "position",
+    "radius",
+    "rotation",
+    "src",
+    "width"
+    }
+};
+
+AFrameReader::ElementProcessors AFrameReader::elementProcessors = AFrameReader::ElementProcessors();
 AFrameReader::ElementUnnamedCounts AFrameReader::elementUnnamedCounts = AFrameReader::ElementUnnamedCounts();
+
 
 void helper_parseVector(int numDimensions, const QStringList &dimList, float defaultVal, QList<float> &outList) {
     const int listSize = dimList.size();
@@ -39,15 +75,17 @@ void parseVec3(const QXmlStreamAttributes &attributes, const QString &attributeN
     helper_parseVector(3, stringList, defaultValue, valueList);
 }
 
-void processPosition(const AFrameReader::AFrameType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processPosition(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     QList<float> values;
-    parseVec3(elementAttributes, "position", QRegExp("\\s+"), 0.0f, values);
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_POSITION_VALUE);
+    parseVec3(elementAttributes, "position", QRegExp("\\s+"), defaultValue, values);
     properties.setPosition(glm::vec3(values.at(0), values.at(1), values.at(2)));
 }
 
-void processRotation(const AFrameReader::AFrameType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processRotation(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     QList<float> values;
-    parseVec3(elementAttributes, "rotation", QRegExp("\\s+"), 0.0f, values);
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_ROTATION_VALUE);
+    parseVec3(elementAttributes, "rotation", QRegExp("\\s+"), defaultValue, values);
     properties.setRotation(glm::vec3(values.at(0), values.at(1), values.at(2)));
 }
 
@@ -61,25 +99,27 @@ float helper_parseRadius(const QXmlStreamAttributes &elementAttributes, const fl
     return defaultValue;
 }
 
-void processSphereRadius(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processSphereRadius(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     if (properties.dimensionsChanged()) {
         return;
     }
 
-    const float radius = helper_parseRadius(elementAttributes, 0.1f);
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
+    const float radius = helper_parseRadius(elementAttributes, defaultValue);
     const float sphericalDimension = radius * 2;
 
     properties.setDimensions(glm::vec3(sphericalDimension, sphericalDimension, sphericalDimension));
 }
 
-void processCylinderRadius(const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processCylinderRadius(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     // A-Frame cylinders are Y-Major, so height is the Y and radius*2 is the full extent for x & z.
     // Note:  We don't care if the dimensions were already set as this is expected to override it given
     //        the element specific nature of the parsing which is handle after common attributes
     //        like dimension(height/width/depth)
-    const float radius = helper_parseRadius(elementAttributes, 0.1f);
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
+    const float radius = helper_parseRadius(elementAttributes, defaultValue);
     const float diameter = radius * 2;
-    float dimensionY = 0.1f;
+    float dimensionY = DEFAULT_GENERAL_VALUE;
 
     QStringList stringList = elementAttributes.value("height").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
     if (stringList.size() > 0) {
@@ -89,29 +129,8 @@ void processCylinderRadius(const QXmlStreamAttributes &elementAttributes, Entity
     properties.setDimensions(glm::vec3(diameter, dimensionY, diameter));
 }
 
-void processRadius(const AFrameReader::AFrameType elementType, 
-    const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
-    switch (elementType) {
-        case AFrameReader::AFRAMETYPE_CYLINDER: {
-            processCylinderRadius(elementAttributes, properties);
-            return;
-        }
-        case AFrameReader::AFRAMETYPE_SPHERE: {
-            processSphereRadius(elementAttributes, properties);
-            return;
-        }
-        default: {
-            qWarning() << "AFrameReader triggered processRadius for unknown/invalid elementType: " << elementType;
-            break;
-        }
-    }
-}
-
-void processColor(const AFrameReader::AFrameType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
-    if (!elementAttributes.hasAttribute("color")) {
-        return;
-    }
-
+xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes) {
+    xColor color = { (colorPart)255, (colorPart)255, (colorPart)255 };
     QString colorStr = elementAttributes.value("color").toString();
     const int hashIndex = colorStr.indexOf('#');
     if (hashIndex == 0) {
@@ -121,21 +140,41 @@ void processColor(const AFrameReader::AFrameType, const QXmlStreamAttributes &el
         colorStr = colorStr.remove(hashIndex, 1);
     }
     const int hexValue = colorStr.toInt(Q_NULLPTR, 16);
-    properties.setColor({ colorPart(hexValue >> 16),
-        colorPart((hexValue & 0x00FF00) >> 8),
-        colorPart(hexValue & 0x0000FF) });
+    color.red = (colorPart)(hexValue >> 16);
+    color.green = (colorPart)((hexValue & 0x00FF00) >> 8);
+    color.blue = (colorPart)(hexValue & 0x0000FF);
+
+    return color;
 }
 
-void processDimensions(const AFrameReader::AFrameType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (!elementAttributes.hasAttribute("color")) {
+        return;
+    }
+
+    const xColor color = helper_parseColor(elementAttributes);
+    properties.setColor(color);
+}
+
+void processSkyColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (!elementAttributes.hasAttribute("color")) {
+        return;
+    }
+
+    const xColor color = helper_parseColor(elementAttributes);
+    properties.getSkybox().setColor(color);
+}
+
+void processDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     if (properties.dimensionsChanged()) {
         return;
     }
 
     QRegExp splitExp("\\s+");
-    const float defaultDim = 0.1f;
-    float dimensionX = defaultDim;
-    float dimensionY = defaultDim;
-    float dimensionZ = defaultDim;
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
+    float dimensionX = defaultValue;
+    float dimensionY = defaultValue;
+    float dimensionZ = defaultValue;
 
     // Note:  AFrame specifies the dimension components separately, so when we find one
     //        we're going to automatically test for the others so we have the information
@@ -158,70 +197,96 @@ void processDimensions(const AFrameReader::AFrameType, const QXmlStreamAttribute
     properties.setDimensions(glm::vec3(dimensionX, dimensionY, dimensionZ));
 }
 
-#define REGISTER_COMMON_ATTRIBUTE(name, handlerFunc) { \
-    if (!commonConversionTable.contains(COMMON_ELEMENTS_KEY)) { \
-        commonConversionTable.insert(COMMON_ELEMENTS_KEY, AFrameElementHandlerTable()); \
-    } \
-    \
-    AFrameElementHandlerTable &elementHandlers = commonConversionTable[COMMON_ELEMENTS_KEY]; \
-    if (!elementHandlers.contains(name)) { \
-        elementHandlers[name] = { name, AFrameProcessor::conversionHandler(&handlerFunc) }; \
+#define CREATE_ELEMENT_PROCESSOR( elementType ) \
+    AFrameElementProcessor * pElementProcessor = nullptr; \
+    if (isElementTypeValid(elementType)) { \
+        if (!elementProcessors.contains(elementType)) { \
+            elementProcessors[elementType] = { elementType, ComponentProcessors() }; \
+        } \
+        pElementProcessor = &(elementProcessors[elementType]); \
     } else { \
-        qWarning() << "AFrameReader already has handler registered for " << COMMON_ELEMENTS_KEY << " attribute: " << name; \
-    } \
-}
+        qWarning() << "AFrameReader detected attempt to create processor for invalid/unknown elementType: " << elementType; \
+    }
 
-#define REGISTER_ELEMENT_ATTRIBUTE(elementType, attributeName, handlerFunc) { \
-    const QString &elementName = getElementNameForType(elementType); \
-    if (elementName != "") { \
-        if (!commonConversionTable.contains(elementName)) { \
-            commonConversionTable.insert(elementName, AFrameElementHandlerTable()); \
-        } \
-        \
-        AFrameElementHandlerTable &elementHandlers = commonConversionTable[elementName]; \
-        if (!elementHandlers.contains(attributeName)) { \
-            elementHandlers[attributeName] = { attributeName, AFrameProcessor::conversionHandler(&handlerFunc) }; \
+#define ADD_COMPONENT_HANDLER_WITH_DEFAULT( componentType, handlerFunc, defaultValue ) \
+    if (pElementProcessor) { \
+        if (isComponentValid(componentType)) { \
+            pElementProcessor->_componentProcessors[componentType] = { componentType, QVariant(defaultValue) \
+                , AFrameComponentProcessor::ProcessFunc(&handlerFunc) }; \
         } else { \
-            qWarning() << "AFrameReader already has a handler registered for " << elementName << " attribute: " << attributeName; \
+            qWarning() << "AFrameReader Warning - attempted to create processor for invalid/unknown ComponentType: " << componentType; \
         } \
     } else { \
-        qWarning() << "AFrameReader detected registry of invalid/unknown elementType: " << elementType; \
-    } \
-}
+        qWarning() << "AFrameReader Warning - orphaned ADD_COMPONENT_HANDLER call for ComponentType " << componentType; \
+    }
+
+#define ADD_COMPONENT_HANDLER( componentType, handlerFunc ) \
+    if (pElementProcessor) { \
+        if (isComponentValid(componentType)) { \
+            pElementProcessor->_componentProcessors[componentType] = { componentType, QVariant() \
+                , AFrameComponentProcessor::ProcessFunc(&handlerFunc) }; \
+        } else { \
+            qWarning() << "AFrameReader Warning - attempted to create processor for invalid/unknown ComponentType: " << componentType; \
+        } \
+    } else { \
+        qWarning() << "AFrameReader Warning - orphaned ADD_COMPONENT_HANDLER call for ComponentType " << componentType; \
+    }
+
 void AFrameReader::registerAFrameConversionHandlers() {
 
-    supportedAFrameElements.reserve(AFRAMETYPE_COUNT);
-    supportedAFrameElements.push_back("a-box");
-    supportedAFrameElements.push_back("a-circle");
-    supportedAFrameElements.push_back("a-cone");
-    supportedAFrameElements.push_back("a-cylinder");
-    supportedAFrameElements.push_back("a-image");
-    supportedAFrameElements.push_back("a-light");
-    supportedAFrameElements.push_back("a-gltf-model");
-    supportedAFrameElements.push_back("a-obj-model");
-    supportedAFrameElements.push_back("a-plane");
-    supportedAFrameElements.push_back("a-sky");
-    supportedAFrameElements.push_back("a-sphere");
-    supportedAFrameElements.push_back("a-tetrahedron");
-    supportedAFrameElements.push_back("a-text");
-    supportedAFrameElements.push_back("a-triangle");
+    { // a-box -> Shape::Box conversion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_BOX)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_WIDTH, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_HEIGHT, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_DEPTH, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
+    }
 
-    REGISTER_COMMON_ATTRIBUTE("position", processPosition);
-    REGISTER_COMMON_ATTRIBUTE("rotation", processRotation);
-    REGISTER_COMMON_ATTRIBUTE("color", processColor);
-    REGISTER_COMMON_ATTRIBUTE("width", processDimensions);
-    REGISTER_COMMON_ATTRIBUTE("height", processDimensions);
-    REGISTER_COMMON_ATTRIBUTE("depth", processDimensions);
-    REGISTER_ELEMENT_ATTRIBUTE(AFRAMETYPE_SPHERE, "radius", processRadius);
-    REGISTER_ELEMENT_ATTRIBUTE(AFRAMETYPE_CYLINDER, "radius", processRadius);
+    { // a-cylinder -> Shape::Cylinder converstion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_CYLINDER)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            // TODO_WL21698: Cylinder only cares about height, should have a singular handler as opposed to dimensions
+            //  for cases like this....
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_HEIGHT, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processCylinderRadius, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
+    }
+
+    { // a-plane -> Shape::Quad conversion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_PLANE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_WIDTH, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_HEIGHT, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
+    }
+
+    { // a-sphere -> Shape::Sphere conversion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_SPHERE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereRadius, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
+    }
+
+    //{ // a-sky -> Zone::SkyBox conversion setup
+    //    CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_SKY)
+    //        ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+    //        ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+    //        ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereRadius, 5000)
+    //        ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processSkyColor);
+    //}
 }
 
 QString AFrameReader::getElementNameForType(const AFrameType elementType) {
-    if ((int)elementType < 0 || (int)elementType >= (int)AFRAMETYPE_COUNT) {
-        return "";
+    if (!isElementTypeValid(elementType)) {
+        return QString();
     }
 
-    return supportedAFrameElements[(int)elementType];
+    return AFRAME_ELEMENT_NAMES[(int)elementType];
 }
 
 AFrameReader::AFrameType AFrameReader::getTypeForElementName(const QString &elementName) {
@@ -229,12 +294,47 @@ AFrameReader::AFrameType AFrameReader::getTypeForElementName(const QString &elem
         return AFRAMETYPE_COUNT;
     }
 
-    const int elementIndex = supportedAFrameElements.indexOf(elementName);
-    if (elementIndex != -1) {
-        return (AFrameType)elementIndex;
+    const int numElementNames = AFRAME_ELEMENT_NAMES.size();
+    for (int elementIndex =0; elementIndex < numElementNames; ++elementIndex) {
+
+        if ( AFRAME_ELEMENT_NAMES[elementIndex] == elementName ) {
+            return (AFrameType)elementIndex;
+        }
     }
 
     return AFRAMETYPE_COUNT;
+}
+
+bool AFrameReader::isElementTypeValid(const AFrameType elementType) {
+    return !((int)elementType < 0 || (int)elementType >= (int)AFRAMETYPE_COUNT);
+}
+
+QString AFrameReader::getNameForComponent(AFrameComponent componentType) {
+    if (!isComponentValid(componentType)) {
+        return QString();
+    }
+
+    return AFRAME_COMPONENT_NAMES[(int)componentType];
+}
+
+AFrameReader::AFrameComponent AFrameReader::getComponentForName(const QString &componentName) {
+    if (componentName.isEmpty()) {
+        return AFRAMECOMPONENT_COUNT;
+    }
+
+    const int numComponentNames = AFRAME_COMPONENT_NAMES.size();
+    for (int componentIndex = 0; componentIndex < numComponentNames; ++componentIndex) {
+
+        if (AFRAME_COMPONENT_NAMES[componentIndex] == componentName) {
+            return (AFrameComponent)componentIndex;
+        }
+    }
+
+    return AFRAMECOMPONENT_COUNT;
+}
+
+bool AFrameReader::isComponentValid(const AFrameComponent componentType) {
+    return !((int)componentType < 0 || (int)componentType >= (int)AFRAMECOMPONENT_COUNT);
 }
 
 bool AFrameReader::read(const QByteArray &aframeData) {
@@ -294,6 +394,10 @@ bool AFrameReader::processScene() {
             if (elementType == AFRAMETYPE_COUNT) {
                 // Early Iteration Exit
                 continue;
+            } else if (!elementProcessors.contains(elementType)) {
+                // Early Iteration Exit
+                qWarning() << "AFrameReader::processScene - Error - No ElementProcessor for ElementType: " << elementName;
+                continue;
             }
 
             switch (elementType) {
@@ -316,6 +420,12 @@ bool AFrameReader::processScene() {
                     hifiProps.setShape(entity::stringFromShape(entity::Shape::Sphere));
                     break;
                 }
+                case AFRAMETYPE_SKY: {
+                    hifiProps.setType(EntityTypes::Zone);
+                    hifiProps.setSkyboxMode(COMPONENT_MODE_ENABLED);
+                    hifiProps.setShapeType(SHAPE_TYPE_SPHERE);
+                    break;
+                }
                 default: {
                     // EARLY ITERATION EXIT -- Unknown/invalid type encountered.
                     qWarning() << "AFrameReader::processScene encountered unknown/invalid element: " << elementName;
@@ -324,47 +434,21 @@ bool AFrameReader::processScene() {
             }
 
             if (hifiProps.getType() != EntityTypes::Unknown) {
-                // Get Attributes
-                QXmlStreamAttributes attributes = m_reader.attributes();
+
+                const AFrameElementProcessor &elementProcessor = elementProcessors[elementType];
+                const QXmlStreamAttributes attributes = m_reader.attributes();
+                
                 // For each attribute, process and record for entity properties.
                 if (attributes.hasAttribute("id")) {
                     hifiProps.setName(attributes.value("id").toString());
-                }
-                else {
+                } else {
                     const int elementUnsubCount = elementUnnamedCounts[elementName]+1; //Unnamed count should be 1-based
                     hifiProps.setName(elementName + "_" + QString::number(elementUnsubCount));
                     elementUnnamedCounts[elementName] = elementUnsubCount;
                 }
 
-                const AFrameElementHandlerTable &elementHandlers = commonConversionTable[COMMON_ELEMENTS_KEY];
-                QStringList uncommonElements;
-                for each (QXmlStreamAttribute currentAttribute in attributes) {
-                    const QString attributeName = currentAttribute.name().toString();
-                    if (!elementHandlers.contains(attributeName)) {
-
-                        if (attributeName != "id") {
-                            uncommonElements.push_back(attributeName);
-                        }
-
-                        continue;
-                    }
-
-                    elementHandlers[attributeName].processFunc(elementType, attributes, hifiProps);
-                }
-
-                if (commonConversionTable.contains(elementName)) {
-                    const AFrameElementHandlerTable &elementSpecificHandlers = commonConversionTable[elementName];
-                    for each (QString elementAttribute in uncommonElements) {
-                        if (!elementSpecificHandlers.contains(elementAttribute)) {
-
-                            qDebug() << "AFrameReader - Error: Missing handler for " << elementName 
-                                << " attribute: " << elementAttribute;
-
-                            continue;
-                        }
-
-                        elementSpecificHandlers[elementAttribute].processFunc(elementType, attributes, hifiProps);
-                    }
+                for each ( const AFrameComponentProcessor &componentProcessor in elementProcessor._componentProcessors) {
+                    componentProcessor.processFunc(componentProcessor, attributes, hifiProps);
                 }
 
                 if (hifiProps.getClientOnly()) {

@@ -10,8 +10,11 @@
 #ifndef hifi_AFrameReader_h
 #define hifi_AFrameReader_h
 
+#include <bitset>
+
 #include <QXmlStreamReader>
 #include <QMap>
+#include <QVariant>
 
 class EntityItemProperties;
 
@@ -37,26 +40,43 @@ public:
         AFRAMETYPE_COUNT
     };
 
+    enum AFrameComponent {
+        AFRAMECOMPONENT_COLOR,
+        AFRAMECOMPONENT_DEPTH,
+        AFRAMECOMPONENT_HEIGHT,
+        AFRAMECOMPONENT_POSITION,
+        AFRAMECOMPONENT_RADIUS,
+        AFRAMECOMPONENT_ROTATION,
+        AFRAMECOMPONENT_SOURCE,
+        AFRAMECOMPONENT_WIDTH,
 
-    struct AFrameProcessor {
-        QString propName;
-        typedef std::function<void(const AFrameType elementType, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties)> conversionHandler;
-        conversionHandler processFunc;
+        AFRAMECOMPONENT_COUNT
     };
 
-    typedef QList<EntityItemProperties> AFramePropList;
-    typedef QVector<QString> TagList;
-    // attribute name -> handler
-    typedef QMap< QString, AFrameProcessor > AFrameElementHandlerTable;
-    // element name to handler directory
-    typedef QMap< QString, AFrameElementHandlerTable> AFrameConversionTable;
+    struct AFrameComponentProcessor {
+        typedef std::function<void(const AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties)> ProcessFunc;
+        AFrameComponent componentType;
+        QVariant componentDefault;
+        ProcessFunc processFunc;
+    };
 
-    static AFrameConversionTable commonConversionTable;
-    static TagList supportedAFrameElements;
+    typedef QMap< AFrameComponent, AFrameComponentProcessor > ComponentProcessors;
+
+    struct AFrameElementProcessor {
+        AFrameType _element;
+        ComponentProcessors _componentProcessors;
+    };
+
+    typedef QMap< AFrameType, AFrameElementProcessor > ElementProcessors;
+    typedef QList<EntityItemProperties> AFramePropList;
 
     static void registerAFrameConversionHandlers();
     static QString getElementNameForType(AFrameType elementType);
     static AFrameType getTypeForElementName(const QString &elementName);
+    static bool isElementTypeValid(AFrameType elementType);
+    static QString getNameForComponent(AFrameComponent componentType);
+    static AFrameComponent getComponentForName(const QString &componentName);
+    static bool isComponentValid(AFrameComponent componentType);
 
     bool read(const QByteArray &aframeData);
     QString getErrorString() const;
@@ -64,6 +84,8 @@ public:
 
 
 protected:
+
+    static ElementProcessors elementProcessors;
 
     typedef QHash<QString, int> ElementUnnamedCounts;
     static ElementUnnamedCounts elementUnnamedCounts;
