@@ -846,13 +846,10 @@ bool Octree::readFromStream(uint64_t streamLength, QDataStream& inputStream, con
     if (firstChar == (char) PacketType::EntityData) {
         qCWarning(octree) << "Reading from binary SVO no longer supported";
         return false;
+    } else if (fileExtension == ".html") {
+        qCDebug(octree) << "Reading from HTML Stream length:" << streamLength;
+        return readHTMLFromStream(streamLength, inputStream, marketplaceID);
     } else {
-
-        if (fileExtension == ".html"){
-            qCDebug(octree) << "Reading from HTML Stream length:" << streamLength;
-            return readHTMLFromStream(streamLength, inputStream, marketplaceID);
-        }
-
         qCDebug(octree) << "Reading from JSON SVO Stream length:" << streamLength;
         return readJSONFromStream(streamLength, inputStream, marketplaceID);
     }
@@ -883,7 +880,7 @@ QJsonDocument addMarketplaceIDToDocumentEntities(QJsonDocument& doc, const QStri
 
 const int READ_JSON_BUFFER_SIZE = 2048;
 
-bool Octree::readJSONFromStream(uint64_t streamLength, QDataStream& inputStream, const QString& marketplaceID /*=""*/) {
+bool Octree::readJSONFromStream(uint64_t streamLength, QDataStream& inputStream, const QString& marketplaceID /*=QString()*/) {
     // if the data is gzipped we may not have a useful bytesAvailable() result, so just keep reading until
     // we get an eof.  Leave streamLength parameter for consistency.
 
@@ -921,25 +918,29 @@ bool Octree::readHTMLFromStream(uint64_t streamLength, QDataStream& inputStream,
 
     QByteArray buffer;
     char* rawData = new char[READ_HTML_BUFFER_SIZE];
+    int bytesRead = 0;
     while (!inputStream.atEnd()) {
-        int got = inputStream.readRawData(rawData, READ_HTML_BUFFER_SIZE - 1);
-        if (got < 0) {
-            qCritical() << "error while reading from html stream";
-            delete[] rawData;
-            return false;
-        }
-        if (got == 0) {
+        bytesRead = inputStream.readRawData(rawData, READ_HTML_BUFFER_SIZE);
+        if (bytesRead <= 0) {
+            // Either things completed or something broke....
             break;
         }
-        buffer += QByteArray(rawData, got);
+
+        buffer += QByteArray(rawData, bytesRead);
+    }
+
+    delete[] rawData;
+
+    if (bytesRead < 0) {
+        // Error occurred during read.
+        qCritical() << "error while reading from html stream";
+        return false;
     }
 
     //TODO_21698:  What about marketplaceID?
-
-    bool success = readFromAframe(buffer);
     
-    delete[] rawData;
-    return success;
+    return readFromAFrame(buffer);
+    
 }
 
 bool Octree::writeToFile(const char* fileName, const OctreeElementPointer& element, QString persistAsFileType) {

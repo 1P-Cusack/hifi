@@ -2420,7 +2420,7 @@ bool EntityTree::readFromMap(QVariantMap& map) {
     return success;
 }
 
-bool EntityTree::readFromAframe(const QByteArray &fileData) {
+bool EntityTree::readFromAFrame(const QByteArray &fileData) {
     bool success = true;
 
     AFrameReader reader;

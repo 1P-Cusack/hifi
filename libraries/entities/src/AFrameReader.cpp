@@ -2,8 +2,8 @@
 //  EntityTree.h
 //  libraries/entities/src
 //
-//  Created by LaShonda Hopper 02/21/18.
-//  Copyright 2013 High Fidelity, Inc.
+//  Created by LaShonda Hopper 2018/02/21.
+//  Copyright 2018 High Fidelity, Inc.
 //
 //  Distributed under the Apache License, Version 2.0.
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
@@ -20,7 +20,7 @@ const char COMMON_ELEMENTS_KEY[] = "common_elements";
 
 AFrameReader::AFrameConversionTable AFrameReader::commonConversionTable = AFrameReader::AFrameConversionTable();
 AFrameReader::TagList AFrameReader::supportedAFrameElements = AFrameReader::TagList();
-AFrameReader::ElementUnnamedCounts AFrameReader::elementUnknownCounts = AFrameReader::ElementUnnamedCounts();
+AFrameReader::ElementUnnamedCounts AFrameReader::elementUnnamedCounts = AFrameReader::ElementUnnamedCounts();
 
 void helper_parseVector(int numDimensions, const QStringList &dimList, float defaultVal, QList<float> &outList) {
     const int listSize = dimList.size();
@@ -331,9 +331,9 @@ bool AFrameReader::processScene() {
                     hifiProps.setName(attributes.value("id").toString());
                 }
                 else {
-                    const int elementUnsubCount = elementUnknownCounts[elementName]+1; //Unnamed count should be 1-based
+                    const int elementUnsubCount = elementUnnamedCounts[elementName]+1; //Unnamed count should be 1-based
                     hifiProps.setName(elementName + "_" + QString::number(elementUnsubCount));
-                    elementUnknownCounts[elementName] = elementUnsubCount;
+                    elementUnnamedCounts[elementName] = elementUnsubCount;
                 }
 
                 const AFrameElementHandlerTable &elementHandlers = commonConversionTable[COMMON_ELEMENTS_KEY];

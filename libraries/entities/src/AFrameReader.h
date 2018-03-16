@@ -2,8 +2,8 @@
 //  EntityTree.h
 //  libraries/entities/src
 //
-//  Created by LaShonda Hopper 02/21/18.
-//  Copyright 2013 High Fidelity, Inc.
+//  Created by LaShonda Hopper 2018/02/21.
+//  Copyright 2018 High Fidelity, Inc.
 //
 //  Distributed under the Apache License, Version 2.0.
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
@@ -66,7 +66,7 @@ public:
 protected:
 
     typedef QHash<QString, int> ElementUnnamedCounts;
-    static ElementUnnamedCounts elementUnknownCounts;
+    static ElementUnnamedCounts elementUnnamedCounts;
 
     bool processScene();
 

@@ -216,7 +216,7 @@ public:
     virtual bool writeToMap(QVariantMap& entityDescription, OctreeElementPointer element, bool skipDefaultValues,
                             bool skipThoseWithBadParents) override;
     virtual bool readFromMap(QVariantMap& entityDescription) override;
-    virtual bool readFromAframe(const QByteArray &fileData) override;
+    virtual bool readFromAFrame(const QByteArray &fileData) override;
 
     glm::vec3 getContentsDimensions();
     float getContentsLargestDimension();
