@@ -1623,7 +1623,7 @@ function onPromptTextChanged(prompt) {
 
 function invokeWindowImportEntityPrompt() {
     Window.browseChanged.connect(onFileOpenChanged);
-    Window.browseAsync("Select Model to Import", "", "*.json *.html");
+    Window.browseAsync("Select File to Import", "", "*.json *.html *.HTML *.htm *.HTM");
 }
 
 function handeMenuEvent(menuItem) {

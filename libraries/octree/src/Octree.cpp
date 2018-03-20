@@ -837,6 +837,7 @@ bool Octree::readFromURL(const QString& urlString) {
 
 
 bool Octree::readFromStream(uint64_t streamLength, QDataStream& inputStream, const QString& marketplaceID, const QString & fileExtension) {
+    const QString &normalizedFileExtension = fileExtension.toLower();
     // decide if this is binary SVO or JSON-formatted SVO
     QIODevice *device = inputStream.device();
     char firstChar;
@@ -846,7 +847,7 @@ bool Octree::readFromStream(uint64_t streamLength, QDataStream& inputStream, con
     if (firstChar == (char) PacketType::EntityData) {
         qCWarning(octree) << "Reading from binary SVO no longer supported";
         return false;
-    } else if (fileExtension == ".html") {
+    } else if (normalizedFileExtension == ".html" || normalizedFileExtension == ".htm") {
         qCDebug(octree) << "Reading from HTML Stream length:" << streamLength;
         return readHTMLFromStream(streamLength, inputStream, marketplaceID);
     } else {
