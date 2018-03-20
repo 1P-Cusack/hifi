@@ -75,23 +75,8 @@ void parseVec3(const QXmlStreamAttributes &attributes, const QString &attributeN
     helper_parseVector(3, stringList, defaultValue, valueList);
 }
 
-void processPosition(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
-    QList<float> values;
-    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_POSITION_VALUE);
-    parseVec3(elementAttributes, "position", QRegExp("\\s+"), defaultValue, values);
-    properties.setPosition(glm::vec3(values.at(0), values.at(1), values.at(2)));
-}
-
-void processRotation(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
-    QList<float> values;
-    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_ROTATION_VALUE);
-    parseVec3(elementAttributes, "rotation", QRegExp("\\s+"), defaultValue, values);
-    properties.setRotation(glm::vec3(values.at(0), values.at(1), values.at(2)));
-}
-
-float helper_parseRadius(const QXmlStreamAttributes &elementAttributes, const float defaultValue ) {
- 
-    QStringList stringList = elementAttributes.value("radius").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
+float parseFloat(const QString &parseKey, const QXmlStreamAttributes &elementAttributes, const QRegExp &splitExp, const float defaultValue) {
+    const QStringList stringList = elementAttributes.value(parseKey).toString().split(splitExp, QString::SkipEmptyParts);
     if (stringList.size() > 0) {
         return stringList.at(0).toFloat();
     }
@@ -99,43 +84,56 @@ float helper_parseRadius(const QXmlStreamAttributes &elementAttributes, const fl
     return defaultValue;
 }
 
-void processSphereRadius(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processPosition(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    QList<float> values;
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_POSITION_VALUE);
+    parseVec3(elementAttributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_POSITION), QRegExp("\\s+"), defaultValue, values);
+    properties.setPosition(glm::vec3(values.at(0), values.at(1), values.at(2)));
+}
+
+void processRotation(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    QList<float> values;
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_ROTATION_VALUE);
+    parseVec3(elementAttributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_ROTATION), QRegExp("\\s+"), defaultValue, values);
+    properties.setRotation(glm::vec3(values.at(0), values.at(1), values.at(2)));
+}
+
+void processSphereDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     if (properties.dimensionsChanged()) {
         return;
     }
 
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
-    const float radius = helper_parseRadius(elementAttributes, defaultValue);
+    const float radius = parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_RADIUS), elementAttributes, QRegExp("\\s+"), defaultValue);
     const float sphericalDimension = radius * 2;
 
     properties.setDimensions(glm::vec3(sphericalDimension, sphericalDimension, sphericalDimension));
 }
 
-void processCylinderRadius(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
-    // A-Frame cylinders are Y-Major, so height is the Y and radius*2 is the full extent for x & z.
-    // Note:  We don't care if the dimensions were already set as this is expected to override it given
-    //        the element specific nature of the parsing which is handle after common attributes
-    //        like dimension(height/width/depth)
-    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
-    const float radius = helper_parseRadius(elementAttributes, defaultValue);
-    const float diameter = radius * 2;
-    float dimensionY = DEFAULT_GENERAL_VALUE;
-
-    QStringList stringList = elementAttributes.value("height").toString().split(QRegExp("\\s+"), QString::SkipEmptyParts);
-    if (stringList.size() > 0) {
-        dimensionY = stringList.at(0).toFloat();
+void processCylinderDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (properties.dimensionsChanged()) {
+        return;
     }
+
+    // A-Frame cylinders are Y-Major, so height is the Y and radius*2 is the full extent for x & z.
+    const QRegExp splitExp("\\s+");
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
+
+    const float radius = parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_RADIUS), elementAttributes, splitExp, defaultValue);
+    const float diameter = radius * 2;
+
+    const float dimensionY = parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_HEIGHT), elementAttributes, splitExp, DEFAULT_GENERAL_VALUE);
 
     properties.setDimensions(glm::vec3(diameter, dimensionY, diameter));
 }
 
-void processCircleRadius(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processCircleDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
     if (properties.dimensionsChanged()) {
         return;
     }
 
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
-    const float radius = helper_parseRadius(elementAttributes, defaultValue);
+    const float radius = parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_RADIUS), elementAttributes, QRegExp("\\s+"), defaultValue);
     const float diameter = radius * 2;
     
     // Circles are essentially flat cylinders, thus they shouldn't have any height.
@@ -144,7 +142,7 @@ void processCircleRadius(const AFrameReader::AFrameComponentProcessor &component
 
 xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes) {
     xColor color = { (colorPart)255, (colorPart)255, (colorPart)255 };
-    QString colorStr = elementAttributes.value("color").toString();
+    QString colorStr = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_COLOR)).toString();
     const int hashIndex = colorStr.indexOf('#');
     if (hashIndex == 0) {
         colorStr = colorStr.mid(1);
@@ -161,7 +159,7 @@ xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes) {
 }
 
 void processColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
-    if (!elementAttributes.hasAttribute("color")) {
+    if (!elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_COLOR))) {
         return;
     }
 
@@ -170,7 +168,7 @@ void processColor(const AFrameReader::AFrameComponentProcessor &component, const
 }
 
 void processSkyColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
-    if (!elementAttributes.hasAttribute("color")) {
+    if (!elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_COLOR))) {
         return;
     }
 
@@ -185,27 +183,13 @@ void processDimensions(const AFrameReader::AFrameComponentProcessor &component, 
 
     QRegExp splitExp("\\s+");
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
-    float dimensionX = defaultValue;
-    float dimensionY = defaultValue;
-    float dimensionZ = defaultValue;
 
     // Note:  AFrame specifies the dimension components separately, so when we find one
     //        we're going to automatically test for the others so we have the information
     //        at the same time.
-    QStringList stringList = elementAttributes.value("width").toString().split(splitExp, QString::SkipEmptyParts);
-    if (stringList.size() > 0) {
-        dimensionX = stringList.at(0).toFloat();
-    }
-
-    stringList = elementAttributes.value("height").toString().split(splitExp, QString::SkipEmptyParts);
-    if (stringList.size() > 0) {
-        dimensionY = stringList.at(0).toFloat();
-    }
-
-    stringList = elementAttributes.value("depth").toString().split(splitExp, QString::SkipEmptyParts);
-    if (stringList.size() > 0) {
-        dimensionZ = stringList.at(0).toFloat();
-    }
+    float dimensionX = parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_WIDTH), elementAttributes, splitExp, defaultValue);
+    float dimensionY = parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_HEIGHT), elementAttributes, splitExp, defaultValue);
+    float dimensionZ = parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_DEPTH), elementAttributes, splitExp, defaultValue);
 
     properties.setDimensions(glm::vec3(dimensionX, dimensionY, dimensionZ));
 }
@@ -261,10 +245,8 @@ void AFrameReader::registerAFrameConversionHandlers() {
         CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_CYLINDER)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
-            // TODO_WL21698: Cylinder only cares about height, should have a singular handler as opposed to dimensions
-            //  for cases like this....
-            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_HEIGHT, processDimensions, DEFAULT_GENERAL_VALUE)
-            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processCylinderRadius, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_HEIGHT, processCylinderDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processCylinderDimensions, DEFAULT_GENERAL_VALUE)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
     }
 
@@ -281,7 +263,7 @@ void AFrameReader::registerAFrameConversionHandlers() {
         CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_SPHERE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
-            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereRadius, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereDimensions, DEFAULT_GENERAL_VALUE)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
     }
 
@@ -289,7 +271,7 @@ void AFrameReader::registerAFrameConversionHandlers() {
     //    CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_SKY)
     //        ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
     //        ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
-    //        ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereRadius, 5000)
+    //        ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereDimensions, 5000)
     //        ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processSkyColor);
     //}
 
@@ -297,7 +279,7 @@ void AFrameReader::registerAFrameConversionHandlers() {
         CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_CIRCLE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
-            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processCircleRadius, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processCircleDimensions, DEFAULT_GENERAL_VALUE)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
     }
 }
