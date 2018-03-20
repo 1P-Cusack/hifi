@@ -129,6 +129,19 @@ void processCylinderRadius(const AFrameReader::AFrameComponentProcessor &compone
     properties.setDimensions(glm::vec3(diameter, dimensionY, diameter));
 }
 
+void processCircleRadius(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (properties.dimensionsChanged()) {
+        return;
+    }
+
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
+    const float radius = helper_parseRadius(elementAttributes, defaultValue);
+    const float diameter = radius * 2;
+    
+    // Circles are essentially flat cylinders, thus they shouldn't have any height.
+    properties.setDimensions(glm::vec3(diameter, 0.0f, diameter));
+}
+
 xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes) {
     xColor color = { (colorPart)255, (colorPart)255, (colorPart)255 };
     QString colorStr = elementAttributes.value("color").toString();
@@ -279,6 +292,14 @@ void AFrameReader::registerAFrameConversionHandlers() {
     //        ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereRadius, 5000)
     //        ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processSkyColor);
     //}
+
+    { // a-circle -> Shape::Circle conversion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_CIRCLE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processCircleRadius, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
+    }
 }
 
 QString AFrameReader::getElementNameForType(const AFrameType elementType) {
@@ -424,6 +445,11 @@ bool AFrameReader::processScene() {
                     hifiProps.setType(EntityTypes::Zone);
                     hifiProps.setSkyboxMode(COMPONENT_MODE_ENABLED);
                     hifiProps.setShapeType(SHAPE_TYPE_SPHERE);
+                    break;
+                }
+                case AFRAMETYPE_CIRCLE: {
+                    hifiProps.setType(EntityTypes::Shape);
+                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Circle));
                     break;
                 }
                 default: {

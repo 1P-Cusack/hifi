@@ -239,11 +239,11 @@ void ShapeEntityItem::setAlpha(float alpha) {
 }
 
 void ShapeEntityItem::setUnscaledDimensions(const glm::vec3& value) {
-    const float MAX_FLAT_DIMENSION = 0.0001f;
-    if ((_shape == entity::Shape::Circle || _shape == entity::Shape::Quad) && value.y > MAX_FLAT_DIMENSION) {
+    const float REQUIRED_FLAT_DIMENSION = 0.0001f;
+    if ((_shape == entity::Shape::Circle || _shape == entity::Shape::Quad) && value.y != REQUIRED_FLAT_DIMENSION) {
         // enforce flatness in Y
         glm::vec3 newDimensions = value;
-        newDimensions.y = MAX_FLAT_DIMENSION;
+        newDimensions.y = REQUIRED_FLAT_DIMENSION;
         EntityItem::setUnscaledDimensions(newDimensions);
     } else {
         EntityItem::setUnscaledDimensions(value);
