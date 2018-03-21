@@ -10,8 +10,6 @@
 #ifndef hifi_AFrameReader_h
 #define hifi_AFrameReader_h
 
-#include <bitset>
-
 #include <QXmlStreamReader>
 #include <QMap>
 #include <QVariant>

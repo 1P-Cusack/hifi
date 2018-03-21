@@ -309,6 +309,14 @@ void AFrameReader::registerAFrameConversionHandlers() {
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processConeDimensions, DEFAULT_GENERAL_VALUE)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
     }
+
+    { // a-tetrahedron -> Shape::Tetrahedron conversion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_TETRAHEDRON)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
+    }
 }
 
 QString AFrameReader::getElementNameForType(const AFrameType elementType) {
@@ -324,7 +332,7 @@ AFrameReader::AFrameType AFrameReader::getTypeForElementName(const QString &elem
         return AFRAMETYPE_COUNT;
     }
 
-    const int numElementNames = AFRAME_ELEMENT_NAMES.size();
+    const int numElementNames = (int)AFRAME_ELEMENT_NAMES.size();
     for (int elementIndex =0; elementIndex < numElementNames; ++elementIndex) {
 
         if ( AFRAME_ELEMENT_NAMES[elementIndex] == elementName ) {
@@ -336,7 +344,7 @@ AFrameReader::AFrameType AFrameReader::getTypeForElementName(const QString &elem
 }
 
 bool AFrameReader::isElementTypeValid(const AFrameType elementType) {
-    return !((int)elementType < 0 || (int)elementType >= (int)AFRAMETYPE_COUNT);
+    return ((int)elementType >= 0) && ((int)elementType < (int)AFRAMETYPE_COUNT);
 }
 
 QString AFrameReader::getNameForComponent(AFrameComponent componentType) {
@@ -352,7 +360,7 @@ AFrameReader::AFrameComponent AFrameReader::getComponentForName(const QString &c
         return AFRAMECOMPONENT_COUNT;
     }
 
-    const int numComponentNames = AFRAME_COMPONENT_NAMES.size();
+    const int numComponentNames = (int)AFRAME_COMPONENT_NAMES.size();
     for (int componentIndex = 0; componentIndex < numComponentNames; ++componentIndex) {
 
         if (AFRAME_COMPONENT_NAMES[componentIndex] == componentName) {
@@ -364,7 +372,7 @@ AFrameReader::AFrameComponent AFrameReader::getComponentForName(const QString &c
 }
 
 bool AFrameReader::isComponentValid(const AFrameComponent componentType) {
-    return !((int)componentType < 0 || (int)componentType >= (int)AFRAMECOMPONENT_COUNT);
+    return ((int)componentType >= 0) && ((int)componentType < (int)AFRAMECOMPONENT_COUNT);
 }
 
 bool AFrameReader::read(const QByteArray &aframeData) {
@@ -464,6 +472,11 @@ bool AFrameReader::processScene() {
                 case AFRAMETYPE_CONE: {
                     hifiProps.setType(EntityTypes::Shape);
                     hifiProps.setShape(entity::stringFromShape(entity::Shape::Cone));
+                    break;
+                }
+                case AFRAMETYPE_TETRAHEDRON: {
+                    hifiProps.setType(EntityTypes::Shape);
+                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Tetrahedron));
                     break;
                 }
                 default: {
