@@ -19,6 +19,10 @@
 
 const char AFRAME_SCENE[] = "a-scene";
 const char COMMON_ELEMENTS_KEY[] = "common_elements";
+const char DIRECTIONAL_LIGHT_NAME[] = "directional";
+const char SPOT_LIGHT_NAME[] = "spot";
+const char POINT_LIGHT_NAME[] = "point";
+const char AMBIENT_LIGHT_NAME[] = "ambient";
 const QVariant INVALID_PROPERTY_DEFAULT = QVariant();
 const float DEFAULT_POSITION_VALUE = 0.0f;
 const float DEFAULT_ROTATION_VALUE = 0.0f;
@@ -46,11 +50,13 @@ const std::array< QString, AFrameReader::AFRAMECOMPONENT_COUNT > AFRAME_COMPONEN
     "color",
     "depth",
     "height",
+    "intensity",
     "position",
     "radius",
     "radius-bottom",
     "rotation",
     "src",
+    "type",
     "width"
     }
 };
@@ -212,6 +218,40 @@ void processDimensions(const AFrameReader::AFrameComponentProcessor &component, 
     properties.setDimensions(glm::vec3(dimensionX, dimensionY, dimensionZ));
 }
 
+float helper_parseIntensity(const QXmlStreamAttributes &elementAttributes, const QRegExp &splitExp, const float defaultValue) {
+    return parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_INTENSITY), elementAttributes, splitExp, defaultValue);
+}
+
+void processIntensity(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    QRegExp splitExp("\\s+");
+    const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
+    const float intensity = helper_parseIntensity(elementAttributes, splitExp, defaultValue);
+
+    properties.setIntensity(intensity);
+}
+
+void processLightType(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (!elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_TYPE))) {
+        return;
+    }
+
+    const QString strLightType = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_TYPE)).toString();
+    if ((strLightType == DIRECTIONAL_LIGHT_NAME) || (strLightType == POINT_LIGHT_NAME)) {
+        // Directional lights aren't currently supported, so convert them to point lights.
+        properties.setIsSpotlight(false);
+    } else if (strLightType == SPOT_LIGHT_NAME) {
+        properties.setIsSpotlight(true);
+    } else if (strLightType == AMBIENT_LIGHT_NAME) {
+        properties.setAmbientLightMode(COMPONENT_MODE_ENABLED);
+        const float intensity = helper_parseIntensity(elementAttributes, QRegExp("\\s+"), DEFAULT_GENERAL_VALUE);
+        properties.getAmbientLight().setAmbientIntensity(intensity);
+    } else {
+        // ...this is an unknown light type, so default to treating it as a point light.
+        qWarning() << "AFrameReader::processLightType detected invalid/unknown LightType: " << strLightType;
+        properties.setIsSpotlight(false);
+    }
+}
+
 #define CREATE_ELEMENT_PROCESSOR( elementType ) \
     AFrameElementProcessor * pElementProcessor = nullptr; \
     if (isElementTypeValid(elementType)) { \
@@ -315,6 +355,15 @@ void AFrameReader::registerAFrameConversionHandlers() {
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_RADIUS, processSphereDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
+    }
+
+    { // a-light -> LightEntityItem conversion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_LIGHT)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_INTENSITY, processIntensity, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_TYPE, processLightType)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
     }
 }
@@ -477,6 +526,10 @@ bool AFrameReader::processScene() {
                 case AFRAMETYPE_TETRAHEDRON: {
                     hifiProps.setType(EntityTypes::Shape);
                     hifiProps.setShape(entity::stringFromShape(entity::Shape::Tetrahedron));
+                    break;
+                }
+                case AFRAMETYPE_LIGHT: {
+                    hifiProps.setType(EntityTypes::Light);
                     break;
                 }
                 default: {
