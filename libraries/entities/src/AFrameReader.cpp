@@ -14,6 +14,7 @@
 
 #include "EntityItemProperties.h"
 #include "ShapeEntityItem.h"
+#include "TextEntityItem.h"
 
 //#define AFRAME_DEBUG_NOTES //< Turns on debug note prints for this file.
 
@@ -23,6 +24,9 @@ const char DIRECTIONAL_LIGHT_NAME[] = "directional";
 const char SPOT_LIGHT_NAME[] = "spot";
 const char POINT_LIGHT_NAME[] = "point";
 const char AMBIENT_LIGHT_NAME[] = "ambient";
+const char TEXT_SIDE_FRONT[] = "front";
+const char TEXT_SIDE_BACK[] = "back";
+const char TEXT_SIDE_DOUBLE[] = "double";
 const QVariant INVALID_PROPERTY_DEFAULT = QVariant();
 const float DEFAULT_POSITION_VALUE = 0.0f;
 const float DEFAULT_ROTATION_VALUE = 0.0f;
@@ -51,12 +55,15 @@ const std::array< QString, AFrameReader::AFRAMECOMPONENT_COUNT > AFRAME_COMPONEN
     "depth",
     "height",
     "intensity",
+    "lineHeight",
     "position",
     "radius",
     "radius-bottom",
     "rotation",
+    "side",
     "src",
     "type",
+    "value",
     "width"
     }
 };
@@ -164,9 +171,12 @@ void processConeDimensions(const AFrameReader::AFrameComponentProcessor &compone
     properties.setDimensions(glm::vec3(diameter, dimensionY, diameter));
 }
 
-xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes) {
-    xColor color = { (colorPart)255, (colorPart)255, (colorPart)255 };
+xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes, const xColor &defaultColor = { (colorPart)255, (colorPart)255, (colorPart)255 }) {
     QString colorStr = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_COLOR)).toString();
+    if (colorStr.isEmpty()) {
+        return defaultColor;
+    }
+    
     const int hashIndex = colorStr.indexOf('#');
     if (hashIndex == 0) {
         colorStr = colorStr.mid(1);
@@ -175,6 +185,7 @@ xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes) {
         colorStr = colorStr.remove(hashIndex, 1);
     }
     const int hexValue = colorStr.toInt(Q_NULLPTR, 16);
+    xColor color;
     color.red = (colorPart)(hexValue >> 16);
     color.green = (colorPart)((hexValue & 0x00FF00) >> 8);
     color.blue = (colorPart)(hexValue & 0x0000FF);
@@ -198,6 +209,11 @@ void processSkyColor(const AFrameReader::AFrameComponentProcessor &component, co
 
     const xColor color = helper_parseColor(elementAttributes);
     properties.getSkybox().setColor(color);
+}
+
+void processTextColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    const xColor color = helper_parseColor(elementAttributes, TextEntityItem::DEFAULT_TEXT_COLOR);
+    properties.setTextColor(color);
 }
 
 void processDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
@@ -249,6 +265,44 @@ void processLightType(const AFrameReader::AFrameComponentProcessor &component, c
         // ...this is an unknown light type, so default to treating it as a point light.
         qWarning() << "AFrameReader::processLightType detected invalid/unknown LightType: " << strLightType;
         properties.setIsSpotlight(false);
+    }
+}
+
+void processText(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    QString displayText = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_VALUE)).toString();
+
+    if (displayText.isEmpty()) {
+        displayText = (component.componentDefault.isValid() ? component.componentDefault.toString() : TextEntityItem::DEFAULT_TEXT);
+    }
+
+    properties.setText(displayText);
+    processDimensions({ component.componentType, QVariant(), nullptr }, elementAttributes, properties);
+}
+
+void processLineHeight(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    float lineHeight = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : TextEntityItem::DEFAULT_LINE_HEIGHT);
+
+    if (elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_LINE_HEIGHT))) {
+        lineHeight = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_LINE_HEIGHT)).toFloat();
+    }
+
+    properties.setLineHeight(lineHeight);
+}
+
+void processTextSide(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+    if (!elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_SIDE))) {
+        return;
+    }
+
+    const QString strTextSide = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_SIDE)).toString();
+    if ((strTextSide == TEXT_SIDE_FRONT) || (strTextSide == TEXT_SIDE_DOUBLE)) {
+        properties.setFaceCamera(true);
+    } else if (strTextSide == TEXT_SIDE_BACK) {
+        properties.setFaceCamera(false);
+    } else {
+        // ...this is an unknown light type, so defaulting.
+        qWarning() << "AFrameReader::processTextSide detected invalid/unknown SideType: " << strTextSide;
+        properties.setFaceCamera(TextEntityItem::DEFAULT_FACE_CAMERA);
     }
 }
 
@@ -365,6 +419,15 @@ void AFrameReader::registerAFrameConversionHandlers() {
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_INTENSITY, processIntensity, DEFAULT_GENERAL_VALUE)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_TYPE, processLightType)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processColor)
+    }
+
+    { // a-text -> TextEntityItem conversion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_TEXT)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_VALUE, processText, TextEntityItem::DEFAULT_TEXT)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_LINE_HEIGHT, processLineHeight, TextEntityItem::DEFAULT_LINE_HEIGHT)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_SIDE, processTextSide)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processTextColor)
     }
 }
 
@@ -530,6 +593,10 @@ bool AFrameReader::processScene() {
                 }
                 case AFRAMETYPE_LIGHT: {
                     hifiProps.setType(EntityTypes::Light);
+                    break;
+                }
+                case AFRAMETYPE_TEXT: {
+                    hifiProps.setType(EntityTypes::Text);
                     break;
                 }
                 default: {
