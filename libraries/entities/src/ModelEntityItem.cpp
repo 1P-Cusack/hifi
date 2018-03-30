@@ -25,6 +25,7 @@
 #include "ResourceCache.h"
 
 const QString ModelEntityItem::DEFAULT_MODEL_URL = QString("");
+const QString ModelEntityItem::DEFAULT_IMAGE_MODEL_URL = QString("https://hifi-content.s3.amazonaws.com/DomainContent/production/default-image-model.fbx");
 const QString ModelEntityItem::DEFAULT_COMPOUND_SHAPE_URL = QString("");
 
 EntityItemPointer ModelEntityItem::factory(const EntityItemID& entityID, const EntityItemProperties& properties) {

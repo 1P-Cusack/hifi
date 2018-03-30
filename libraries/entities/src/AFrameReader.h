@@ -67,6 +67,18 @@ public:
         AFRAMECOMPONENT_COUNT
     };
 
+    //! AssetControlType enumeration specifies labels for each A-Frame Asset Management Element
+    //! supported by this reader.  It's expected that when support for a new Asset Management Element
+    //! is added that a label be added to this enumeration _and_ that its respective
+    //! A-Frame element name be added to AFRAME_ASSET_CONTROL_NAMES within AFrameReader.cpp with
+    //! respect to the enumeration order.
+    enum AssetControlType {
+        ASSET_CONTROL_TYPE_ASSET_IMAGE,
+        ASSET_CONTROL_TYPE_IMG,
+
+        ASSET_CONTROL_TYPE_COUNT
+    };
+
     //! AFrameComponentProcessor represents component conversion information.  It contains
     //! the AFrameComponent which it represents along with a default value if the component
     //! processFunc doesn't detect the component's presence within the specified element attributes.
@@ -75,6 +87,7 @@ public:
     struct AFrameComponentProcessor {
         typedef std::function<void(const AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties)> ProcessFunc;
         AFrameComponent componentType;
+        AFrameType elementType;
         QVariant componentDefault;
         ProcessFunc processFunc;
     };
@@ -91,9 +104,18 @@ public:
     };
     typedef QMap< AFrameType, AFrameElementProcessor > ElementProcessors;
 
+    struct SourceReference {
+        QString _srcReference;
+        EntityItemProperties * _entityPropData;
+    };
+
     typedef QList<EntityItemProperties> AFramePropList;
+    typedef QHash<QString, QString> StringDictionary;
+    typedef QHash<QString, SourceReference> SourceReferenceDictionary;
 
     static void registerAFrameConversionHandlers();
+    static void noteEntitySourceReference(const QString &srcReference, EntityItemProperties &entityPropData);
+    static inline void clearEntitySourceReferences() { entitySrcReferences.clear(); }
 
     static QString getElementNameForType(AFrameType elementType);
     static AFrameType getTypeForElementName(const QString &elementName);
@@ -102,6 +124,10 @@ public:
     static QString getNameForComponent(AFrameComponent componentType);
     static AFrameComponent getComponentForName(const QString &componentName);
     static bool isComponentValid(AFrameComponent componentType);
+
+    static QString getNameForAssetElement(AssetControlType elementType);
+    static AssetControlType getTypeForAssetElementName(const QString &elementName);
+    static bool isAssetElementTypeValid(AssetControlType elementType);
 
     //! Parses the specified ByteArray looking for supported AFrame Elements.
     //! @return: True, iff the data was read and parsed without error.
@@ -122,11 +148,16 @@ protected:
 
     typedef QHash<QString, int> ElementUnnamedCounts;
     static ElementUnnamedCounts elementUnnamedCounts;
+    static SourceReferenceDictionary entitySrcReferences;
+
+    static void processEntitySourceReferences(const StringDictionary &srcDictionary);
 
     bool processScene();
+    bool processAssets();
 
     QXmlStreamReader m_reader;
     AFramePropList m_propData;
+    StringDictionary m_srcDictionary;
 };
 
 #endif

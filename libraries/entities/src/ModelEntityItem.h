@@ -65,6 +65,7 @@ public:
     virtual bool hasCompoundShapeURL() const;
 
     static const QString DEFAULT_MODEL_URL;
+    static const QString DEFAULT_IMAGE_MODEL_URL;
     QString getModelURL() const;
 
     static const QString DEFAULT_COMPOUND_SHAPE_URL;

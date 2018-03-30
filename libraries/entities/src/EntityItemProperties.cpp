@@ -79,6 +79,7 @@ void EntityItemProperties::debugDump() const {
     qCDebug(entities) << "   _dimensions=" << getDimensions();
     qCDebug(entities) << "   _modelURL=" << _modelURL;
     qCDebug(entities) << "   _compoundShapeURL=" << _compoundShapeURL;
+    qCDebug(entities) << "   _textures=" << _textures;
 
     getAnimation().debugDump();
     getSkybox().debugDump();

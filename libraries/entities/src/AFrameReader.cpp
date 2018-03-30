@@ -10,15 +10,23 @@
 
 #include "AFrameReader.h"
 
+#include <QJsonDocument>
 #include <QList>
 
 #include "EntityItemProperties.h"
+#include "ModelEntityItem.h"
 #include "ShapeEntityItem.h"
 #include "TextEntityItem.h"
 
 //#define AFRAME_DEBUG_NOTES //< Turns on debug note prints for this file.
 
+#ifndef CALC_ELEMENTS_OF
+#define CALC_ELEMENTS_OF(a)   (sizeof(a)/sizeof((a)[0]))
+#endif
+
 const char AFRAME_SCENE[] = "a-scene";
+const char AFRAME_ASSETS[] = "a-assets";
+const char AFRAME_ID[] = "id";
 const char COMMON_ELEMENTS_KEY[] = "common_elements";
 const char DIRECTIONAL_LIGHT_NAME[] = "directional";
 const char SPOT_LIGHT_NAME[] = "spot";
@@ -27,10 +35,29 @@ const char AMBIENT_LIGHT_NAME[] = "ambient";
 const char TEXT_SIDE_FRONT[] = "front";
 const char TEXT_SIDE_BACK[] = "back";
 const char TEXT_SIDE_DOUBLE[] = "double";
+const char INLINE_URL_START[] = "url(";
+const char PROTOCOL_NAME_HTTP[] = "http";
+const char PROTOCOL_NAME_ATP[] = "atp";
+const char SELECTOR_SYMBOL = '#';
 const QVariant INVALID_PROPERTY_DEFAULT = QVariant();
 const float DEFAULT_POSITION_VALUE = 0.0f;
 const float DEFAULT_ROTATION_VALUE = 0.0f;
 const float DEFAULT_GENERAL_VALUE = 1.0f;
+
+const char * const IMAGE_EXTENSIONS[] = { // TODO:  Is this centralized somewhere?
+    ".jpg",
+    ".png"
+};
+
+const int NUM_IMAGE_EXTENSIONS = (int)CALC_ELEMENTS_OF(IMAGE_EXTENSIONS);
+
+const char * const MODEL_EXTENSIONS[] = { // TODO:  Is this centralized somewhere?
+    ".fbx",
+    ".fst",
+    ".obj",
+    ".json"
+};
+const int NUM_MODEL_EXTENSIONS = (int)CALC_ELEMENTS_OF(MODEL_EXTENSIONS);
 
 const std::array< QString, AFrameReader::AFRAMETYPE_COUNT > AFRAME_ELEMENT_NAMES { {
     "a-box",
@@ -68,9 +95,45 @@ const std::array< QString, AFrameReader::AFRAMECOMPONENT_COUNT > AFRAME_COMPONEN
     }
 };
 
+const std::array< QString, AFrameReader::ASSET_CONTROL_TYPE_COUNT > AFRAME_ASSET_CONTROL_NAMES { {
+    "a-asset-image",
+    "img"
+    }
+};
+
 AFrameReader::ElementProcessors AFrameReader::elementProcessors = AFrameReader::ElementProcessors();
 AFrameReader::ElementUnnamedCounts AFrameReader::elementUnnamedCounts = AFrameReader::ElementUnnamedCounts();
+AFrameReader::SourceReferenceDictionary AFrameReader::entitySrcReferences = AFrameReader::SourceReferenceDictionary();
 
+bool hasImageExtension( const QString &fileName ) {
+    if ( fileName.isEmpty() ) {
+        return false;
+    }
+
+    const QString &normalizedFileName = fileName.toLower();
+    for (int extIndex = 0; extIndex < NUM_IMAGE_EXTENSIONS; ++extIndex) {
+        if (normalizedFileName.endsWith(IMAGE_EXTENSIONS[extIndex])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool hasModelExtension(const QString &fileName) {
+    if (fileName.isEmpty()) {
+        return false;
+    }
+
+    const QString &normalizedFileName = fileName.toLower();
+    for (int extIndex = 0; extIndex < NUM_MODEL_EXTENSIONS; ++extIndex) {
+        if (normalizedFileName.endsWith(MODEL_EXTENSIONS[extIndex])) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 void helper_parseVector(int numDimensions, const QStringList &dimList, float defaultVal, QList<float> &outList) {
     const int listSize = dimList.size();
@@ -276,7 +339,7 @@ void processText(const AFrameReader::AFrameComponentProcessor &component, const 
     }
 
     properties.setText(displayText);
-    processDimensions({ component.componentType, QVariant(), nullptr }, elementAttributes, properties);
+    processDimensions({ component.componentType, component.elementType, QVariant(), nullptr }, elementAttributes, properties);
 }
 
 void processLineHeight(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
@@ -306,6 +369,82 @@ void processTextSide(const AFrameReader::AFrameComponentProcessor &component, co
     }
 }
 
+QString helper_getResourceURL(const QString &resourceName) {
+    if (resourceName.isEmpty()) {
+        return QString();
+    }
+
+    // Types of source specifications
+    //      #name_ref
+    //      url(file_path)
+    //          url(assets/models/enemy0.json)
+    //      url(net_path)
+    //          url(https://blah.blah.png)
+    //          url(atp:/blah.blah.jpg)
+    const QString inlineURLStart(INLINE_URL_START);
+    QString url;
+    if (resourceName.startsWith(inlineURLStart, Qt::CaseInsensitive)) {
+        url = resourceName.mid(inlineURLStart.size(), resourceName.size() - 1);
+    } else {
+        url = resourceName;
+    }
+
+    if (!url.startsWith(PROTOCOL_NAME_HTTP, Qt::CaseInsensitive) && !url.startsWith(PROTOCOL_NAME_ATP, Qt::CaseInsensitive)) {
+        url = url.prepend(QString(PROTOCOL_NAME_ATP) + ":/");
+    } else {
+        url = resourceName;
+    }
+
+    return url;
+}
+
+bool helper_assignModelSourceUrl(const QString &sourceUrl, EntityItemProperties *entityPropData) {
+    if (sourceUrl.isEmpty() || entityPropData == nullptr) {
+        return false;
+    }
+
+    if (hasImageExtension(sourceUrl)) {
+        // Note:  setTextures is based on Application::addAssetToWorldAddEntity's image case.
+        QJsonObject textures{
+            { "tex.picture", sourceUrl }
+        };
+        entityPropData->setModelURL(ModelEntityItem::DEFAULT_IMAGE_MODEL_URL);
+        entityPropData->setTextures(QJsonDocument(textures).toJson(QJsonDocument::Compact));
+
+        return true;
+    }
+    else if (hasModelExtension(sourceUrl)) {
+        entityPropData->setModelURL(sourceUrl);
+
+        return true;
+    }
+
+    return false;
+}
+
+void processSource(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+
+    const QString sourceName = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_SOURCE)).toString();
+    if (sourceName.isEmpty()) {
+        return;
+    }
+
+    QString propSource;
+    if (sourceName.startsWith(SELECTOR_SYMBOL)) {
+        propSource = sourceName.mid(1);
+        AFrameReader::noteEntitySourceReference(propSource, properties);
+
+        return;
+    }
+
+    propSource = helper_getResourceURL(sourceName);
+    if (component.elementType == AFrameReader::AFRAMETYPE_IMAGE) {
+        helper_assignModelSourceUrl(propSource, &properties);
+    } else {
+        properties.setSourceUrl(propSource);
+    }
+}
+
 #define CREATE_ELEMENT_PROCESSOR( elementType ) \
     AFrameElementProcessor * pElementProcessor = nullptr; \
     if (isElementTypeValid(elementType)) { \
@@ -320,7 +459,7 @@ void processTextSide(const AFrameReader::AFrameComponentProcessor &component, co
 #define ADD_COMPONENT_HANDLER_WITH_DEFAULT( componentType, handlerFunc, defaultValue ) \
     if (pElementProcessor) { \
         if (isComponentValid(componentType)) { \
-            pElementProcessor->_componentProcessors[componentType] = { componentType, QVariant(defaultValue) \
+            pElementProcessor->_componentProcessors[componentType] = { componentType, pElementProcessor->_element, QVariant(defaultValue) \
                 , AFrameComponentProcessor::ProcessFunc(&handlerFunc) }; \
         } else { \
             qWarning() << "AFrameReader Warning - attempted to create processor for invalid/unknown ComponentType: " << componentType; \
@@ -332,7 +471,7 @@ void processTextSide(const AFrameReader::AFrameComponentProcessor &component, co
 #define ADD_COMPONENT_HANDLER( componentType, handlerFunc ) \
     if (pElementProcessor) { \
         if (isComponentValid(componentType)) { \
-            pElementProcessor->_componentProcessors[componentType] = { componentType, QVariant() \
+            pElementProcessor->_componentProcessors[componentType] = { componentType, pElementProcessor->_element, QVariant() \
                 , AFrameComponentProcessor::ProcessFunc(&handlerFunc) }; \
         } else { \
             qWarning() << "AFrameReader Warning - attempted to create processor for invalid/unknown ComponentType: " << componentType; \
@@ -429,6 +568,88 @@ void AFrameReader::registerAFrameConversionHandlers() {
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_SIDE, processTextSide)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processTextColor)
     }
+
+    {
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_IMAGE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_WIDTH, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_HEIGHT, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_SOURCE, processSource)
+    }
+}
+
+void AFrameReader::noteEntitySourceReference(const QString &srcReference, EntityItemProperties &entityPropData) {
+    if (srcReference.isEmpty()) {
+        qWarning() << "AFrameReader::noteEntitySourceReference - Invalid data for key: " << entityPropData.getName();
+        return;
+    }
+
+    const QString &entityName = entityPropData.getName();
+    if (entityName.isEmpty()) {
+        qWarning() << "AFrameReader::noteEntitySourceReference - Invalid key for srcReference: " << srcReference;
+        return;
+    }
+
+    if (entitySrcReferences.contains(entityName)) {
+        qWarning() << "AFrameReader::noteEntitySourceReference - Registry Keys should be unique.  Multiple registry attempts for " << entityName;
+        return;
+    }
+
+    entitySrcReferences.insert(entityName, { srcReference, &entityPropData });
+}
+
+void AFrameReader::processEntitySourceReferences(const AFrameReader::StringDictionary &srcDictionary) {
+    if (srcDictionary.isEmpty()) {
+        qWarning() << "AFrameReader::processEntitySourceReferences - Received empty source dictionary!";
+        return;
+    }
+
+    qDebug() << "AFrameReader::processEntitySourceReferences ENTERED... ";
+
+    SourceReferenceDictionary::iterator iterEntitySrcRef = entitySrcReferences.begin();
+    const SourceReferenceDictionary::const_iterator iterEntitySrcRefEnd = entitySrcReferences.end();
+    for (; iterEntitySrcRef != iterEntitySrcRefEnd; ++iterEntitySrcRef) {
+
+        SourceReference &sourceRef = iterEntitySrcRef.value();
+        if (!srcDictionary.contains(sourceRef._srcReference)) {
+
+            qDebug() << "Processing skipped EntityProp - " << sourceRef._entityPropData->getName() << 
+                ", couldn't find source: " << sourceRef._srcReference;
+
+            // Early Iteration Exit -- Source wasn't found within the look up table
+            continue;
+        }
+
+        EntityItemProperties * const entityPropData = sourceRef._entityPropData;
+        if (entityPropData->getType() != EntityTypes::Model) {
+            qWarning() << "Processing skipped EntityProp - " << entityPropData->getName() <<
+                "; there's no source ref support for type: " << EntityTypes::getEntityTypeName(entityPropData->getType());
+
+            // Early Iteration Exit -- Currently don't support src references for non-Models
+            continue;
+        }
+
+        const QString &sourceUrl = helper_getResourceURL(srcDictionary.value(sourceRef._srcReference));
+        qDebug() << "Processing EntityProp - " << sourceRef._entityPropData->getName() << " -> Source: " << sourceUrl;
+        
+        const bool processedSource = helper_assignModelSourceUrl(sourceUrl, entityPropData);
+        if (!processedSource) {
+            qWarning() << "Processing terminated for EntityProp - " << entityPropData->getName() <<
+                "; it has an invalid/unsupported source: " << sourceUrl;
+
+            // Early Iteration Exit -- Currently don't support src type
+            continue;
+        }
+
+        // TODO_WL21698:  Remove Debug Dump
+        qDebug() << "---------------";
+        entityPropData->debugDump();
+        qDebug() << "***************";
+    }
+
+    qDebug() << "AFrameReader::processEntitySourceReferences EXITED... ";
+
 }
 
 QString AFrameReader::getElementNameForType(const AFrameType elementType) {
@@ -487,6 +708,34 @@ bool AFrameReader::isComponentValid(const AFrameComponent componentType) {
     return ((int)componentType >= 0) && ((int)componentType < (int)AFRAMECOMPONENT_COUNT);
 }
 
+QString AFrameReader::getNameForAssetElement(const AssetControlType elementType) {
+    if (!isAssetElementTypeValid(elementType)) {
+        return QString();
+    }
+
+    return AFRAME_ASSET_CONTROL_NAMES[(int)elementType];
+}
+
+AFrameReader::AssetControlType AFrameReader::getTypeForAssetElementName(const QString &elementName) {
+    if (elementName.isEmpty()) {
+        return ASSET_CONTROL_TYPE_COUNT;
+    }
+
+    const int numAssetElementTypes = (int)AFRAME_ASSET_CONTROL_NAMES.size();
+    for (int assetTypeIndex = 0; assetTypeIndex < numAssetElementTypes; ++assetTypeIndex) {
+
+        if (AFRAME_ASSET_CONTROL_NAMES[assetTypeIndex] == elementName) {
+            return (AssetControlType)assetTypeIndex;
+        }
+    }
+
+    return ASSET_CONTROL_TYPE_COUNT;
+}
+
+bool AFrameReader::isAssetElementTypeValid(const AssetControlType elementType) {
+    return ((int)elementType >= 0) && ((int)elementType < (int)ASSET_CONTROL_TYPE_COUNT);
+}
+
 bool AFrameReader::read(const QByteArray &aframeData) {
     m_reader.addData(aframeData);
     
@@ -519,13 +768,14 @@ QString AFrameReader::getErrorString() const {
 
 bool AFrameReader::processScene() {
 
-    if (!m_reader.isStartElement() || m_reader.name() != "a-scene") {
+    if (!m_reader.isStartElement() || m_reader.name() != AFRAME_SCENE) {
 
-        qDebug() << "AFrameReader::processScene expects element name a-scene, but element name was: " << m_reader.name();
+        qDebug() << "AFrameReader::processScene expects element name " << AFRAME_SCENE << ", but element name was: " << m_reader.name();
         return false;
     }
 
     m_propData.clear();
+    m_srcDictionary.clear();
     bool success = true;
     QXmlStreamReader::TokenType currentTokenType = QXmlStreamReader::NoToken;
     while (!m_reader.atEnd()) {
@@ -538,8 +788,20 @@ bool AFrameReader::processScene() {
 
         if (m_reader.isStartElement())
         {
+            // Assets section is expected to be first section under
+            // the scene; however, checking status here and allowing
+            // for continued non-asset parsing should cover both cases
+            //      1) Assets grouped at top
+            //      2) Assets somewhere in between or weirdly divvied (why?)
+            if (m_reader.name().toString() == AFRAME_ASSETS) {
+                processAssets();
+
+                if (!m_reader.isStartElement()) {
+                    continue;
+                }
+            }
+
             const QString &elementName = m_reader.name().toString();
-            EntityItemProperties hifiProps;
             const AFrameType elementType = getTypeForElementName(elementName);
             if (elementType == AFRAMETYPE_COUNT) {
                 // Early Iteration Exit
@@ -549,6 +811,9 @@ bool AFrameReader::processScene() {
                 qWarning() << "AFrameReader::processScene - Error - No ElementProcessor for ElementType: " << elementName;
                 continue;
             }
+
+            m_propData.push_back(EntityItemProperties());
+            EntityItemProperties &hifiProps = m_propData.back();
 
             switch (elementType) {
                 case AFRAMETYPE_BOX: {
@@ -599,6 +864,13 @@ bool AFrameReader::processScene() {
                     hifiProps.setType(EntityTypes::Text);
                     break;
                 }
+                case AFRAMETYPE_IMAGE: {
+                    hifiProps.setType(EntityTypes::Model);
+                    hifiProps.setShapeType(SHAPE_TYPE_BOX);
+                    hifiProps.setCollisionless(true);
+                    hifiProps.setDynamic(false);
+                    break;
+                }
                 default: {
                     // EARLY ITERATION EXIT -- Unknown/invalid type encountered.
                     qWarning() << "AFrameReader::processScene encountered unknown/invalid element: " << elementName;
@@ -612,8 +884,8 @@ bool AFrameReader::processScene() {
                 const QXmlStreamAttributes attributes = m_reader.attributes();
                 
                 // For each attribute, process and record for entity properties.
-                if (attributes.hasAttribute("id")) {
-                    hifiProps.setName(attributes.value("id").toString());
+                if (attributes.hasAttribute(AFRAME_ID)) {
+                    hifiProps.setName(attributes.value(AFRAME_ID).toString());
                 } else {
                     const int elementUnsubCount = elementUnnamedCounts[elementName]+1; //Unnamed count should be 1-based
                     hifiProps.setName(elementName + "_" + QString::number(elementUnsubCount));
@@ -638,15 +910,88 @@ bool AFrameReader::processScene() {
                 qDebug() << hifiProps;
                 qDebug() << "-------------------------------------------------";
 
-                m_propData.push_back(hifiProps);
-            }
-        }
-    }
+            } // End_if( getType != EntityTypes::Unknown )
+        } // End_if( startElement )
+    } // End_while( !atEnd )
+
+    processEntitySourceReferences(m_srcDictionary);
+    clearEntitySourceReferences();
 
     if (m_reader.hasError()) {
         qWarning() << "AFrameReader::read encountered error: " << m_reader.errorString();
         success = false;
     }
 
+    return success;
+}
+
+bool AFrameReader::processAssets() {
+    if (!m_reader.isStartElement() || m_reader.name() != AFRAME_ASSETS) {
+
+        qDebug() << "AFrameReader::processAssets expects element name " << AFRAME_ASSETS << ", but element name was: " << m_reader.name();
+        return false;
+    }
+
+    qDebug() << "AFrameReader::processAssets ENTERED... ";
+
+    bool success = true;
+    QXmlStreamReader::TokenType currentTokenType = QXmlStreamReader::NoToken;
+    while (!m_reader.atEnd()) {
+
+        currentTokenType = m_reader.readNext();
+        if (currentTokenType == QXmlStreamReader::TokenType::Invalid) {
+            success = false;
+            break;
+        }
+
+        if (m_reader.isStartElement())
+        {
+            const QString &elementName = m_reader.name().toString();
+            const AssetControlType elementType = getTypeForAssetElementName(elementName);
+            if (elementType == ASSET_CONTROL_TYPE_COUNT) {
+                const AFrameType elementType = getTypeForElementName(elementName);
+                if (elementType != AFRAMETYPE_COUNT) {
+                    qDebug() << "AFrameReader::processAssets EXITING due to - " << elementName;
+
+                    // Early Loop Exit -- encountered primitive/non-asset type
+                    break;
+                }
+
+                // Early Iteration Exit -- encountered unknown/unsupported asset management element
+                qWarning() << "AFrameReader::processAssets detected unknown/unsupported assetElement: " << elementName;
+                continue;
+            }
+
+            qDebug() << "AFrameReader::processAssets detected - " << elementName;
+            const QXmlStreamAttributes attributes = m_reader.attributes();
+            const QString &assetSrc = attributes.value(getNameForComponent(AFRAMECOMPONENT_SOURCE)).toString();
+            const QString &assetId = attributes.value(AFRAME_ID).toString();
+            if (assetId.isEmpty()) {
+                // Early Iteration Exit -- All assets required to have an id specified.
+                qWarning() << "AFrameReader::processAssets detected missing id component for asset " << assetSrc << "!";
+                continue;
+            }
+
+            if (assetSrc.isEmpty()) {
+                // Early Iteration Exit -- All assets are required to have an src specified.
+                qDebug() << "AFrameReader::processAssets detected asset " << assetId << " without required src component!";
+                continue;
+            }
+
+            m_srcDictionary.insert(assetId, assetSrc);
+
+            // TODO_WL21698:  Remove Debug Dump
+            qDebug() << "----------";
+            qDebug() << "AFrameReader::processAssets adding pair: " << assetId << " - " << assetSrc;
+            qDebug() << "**********";
+        } // End_if( isStartElement )
+    } // End_while( !atEnd )
+
+    if (m_reader.hasError()) {
+        qWarning() << "AFrameReader::read encountered error: " << m_reader.errorString();
+        success = false;
+    }
+
+    qDebug() << "AFrameReader::processAssets EXITED... ";
     return success;
 }
