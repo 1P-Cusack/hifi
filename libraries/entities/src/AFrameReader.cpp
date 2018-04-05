@@ -53,9 +53,7 @@ const int NUM_IMAGE_EXTENSIONS = (int)CALC_ELEMENTS_OF(IMAGE_EXTENSIONS);
 
 const char * const MODEL_EXTENSIONS[] = { // TODO:  Is this centralized somewhere?
     ".fbx",
-    ".fst",
-    ".obj",
-    ".json"
+    ".obj"
 };
 const int NUM_MODEL_EXTENSIONS = (int)CALC_ELEMENTS_OF(MODEL_EXTENSIONS);
 
@@ -66,7 +64,6 @@ const std::array< QString, AFrameReader::AFRAMETYPE_COUNT > AFRAME_ELEMENT_NAMES
     "a-cylinder",
     "a-image",
     "a-light",
-    "a-gltf-model",
     "a-obj-model",
     "a-plane",
     "a-sky",
@@ -438,7 +435,8 @@ void processSource(const AFrameReader::AFrameComponentProcessor &component, cons
     }
 
     propSource = helper_getResourceURL(sourceName);
-    if (component.elementType == AFrameReader::AFRAMETYPE_IMAGE) {
+    if ((component.elementType == AFrameReader::AFRAMETYPE_IMAGE) 
+            || (component.elementType == AFrameReader::AFRAMETYPE_MODEL_OBJ)) {
         helper_assignModelSourceUrl(propSource, &properties);
     } else {
         properties.setSourceUrl(propSource);
@@ -569,12 +567,22 @@ void AFrameReader::registerAFrameConversionHandlers() {
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_COLOR, processTextColor)
     }
 
-    {
+    { // a-image -> ModelEntityItem::Image conversion setup
         CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_IMAGE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_WIDTH, processDimensions, DEFAULT_GENERAL_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_HEIGHT, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_SOURCE, processSource)
+    }
+
+    { // a-obj-model -> ModelEntityItem conversion setup
+        CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_MODEL_OBJ)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_WIDTH, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_HEIGHT, processDimensions, DEFAULT_GENERAL_VALUE)
+            ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_DEPTH, processDimensions, DEFAULT_GENERAL_VALUE)
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_SOURCE, processSource)
     }
 }
@@ -869,6 +877,12 @@ bool AFrameReader::processScene() {
                     hifiProps.setShapeType(SHAPE_TYPE_BOX);
                     hifiProps.setCollisionless(true);
                     hifiProps.setDynamic(false);
+                    break;
+                }
+                case AFRAMETYPE_MODEL_OBJ: {
+                    hifiProps.setType(EntityTypes::Model);
+                    hifiProps.setShapeType(SHAPE_TYPE_SIMPLE_COMPOUND);
+                    hifiProps.setCollisionless(true);   // <- In the event that the import lands on top of the user's avatar.
                     break;
                 }
                 default: {
