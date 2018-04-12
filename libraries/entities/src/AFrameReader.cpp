@@ -57,6 +57,11 @@ const char * const MODEL_EXTENSIONS[] = { // TODO:  Is this centralized somewher
 };
 const int NUM_MODEL_EXTENSIONS = (int)CALC_ELEMENTS_OF(MODEL_EXTENSIONS);
 
+const char * const MATERIAL_EXTENSIONS[] = { // TODO:  See a-obj-model TODO. What extensions are supported?
+    ".mtl"
+};
+const int NUM_MATERIAL_EXTENSIONS = (int)CALC_ELEMENTS_OF(MATERIAL_EXTENSIONS);
+
 const std::array< QString, AFrameReader::AFRAMETYPE_COUNT > AFRAME_ELEMENT_NAMES { {
     "a-box",
     "a-circle",
@@ -589,7 +594,9 @@ void AFrameReader::registerAFrameConversionHandlers() {
             ADD_COMPONENT_HANDLER(AFRAMECOMPONENT_SOURCE, processSource)
     }
 
-    { // a-obj-model -> ModelEntityItem conversion setup
+    { // a-obj-model -> ModelEntityItem conversion setup 
+      // TODO_WL21698: Material Entities were recently added.  Do they map to models? 
+      //     If so, re-examine support for Materials on Models.
         CREATE_ELEMENT_PROCESSOR(AFRAMETYPE_MODEL_OBJ)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_POSITION, processPosition, DEFAULT_POSITION_VALUE)
             ADD_COMPONENT_HANDLER_WITH_DEFAULT(AFRAMECOMPONENT_ROTATION, processRotation, DEFAULT_ROTATION_VALUE)
