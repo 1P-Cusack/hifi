@@ -72,6 +72,7 @@ public:
     //! A-Frame element name be added to AFRAME_ASSET_CONTROL_NAMES within AFrameReader.cpp with
     //! respect to the enumeration order.
     enum AssetControlType {
+        ASSET_CONTROL_TYPE_ASSET_ITEM,
         ASSET_CONTROL_TYPE_ASSET_IMAGE,
         ASSET_CONTROL_TYPE_IMG,
 

@@ -93,6 +93,7 @@ const std::array< QString, AFrameReader::AFRAMECOMPONENT_COUNT > AFRAME_COMPONEN
 };
 
 const std::array< QString, AFrameReader::ASSET_CONTROL_TYPE_COUNT > AFRAME_ASSET_CONTROL_NAMES { {
+    "a-asset-item",
     "a-asset-image",
     "img"
     }
@@ -386,6 +387,14 @@ QString helper_getResourceURL(const QString &resourceName) {
         url = resourceName;
     }
 
+    // Vet the extension to ensure it's a supported type.
+    const bool isImageExtension = hasImageExtension(url);
+    const bool isModelExtension = hasModelExtension(url);
+
+    if (!isImageExtension && !isModelExtension) {
+        return QString();
+    }
+
     if (!url.startsWith(PROTOCOL_NAME_HTTP, Qt::CaseInsensitive) && !url.startsWith(PROTOCOL_NAME_ATP, Qt::CaseInsensitive)) {
         url = url.prepend(QString(PROTOCOL_NAME_ATP) + ":/");
     } else {
@@ -435,6 +444,10 @@ void processSource(const AFrameReader::AFrameComponentProcessor &component, cons
     }
 
     propSource = helper_getResourceURL(sourceName);
+    if (propSource.isEmpty()) {
+        return;
+    }
+
     if ((component.elementType == AFrameReader::AFRAMETYPE_IMAGE) 
             || (component.elementType == AFrameReader::AFRAMETYPE_MODEL_OBJ)) {
         helper_assignModelSourceUrl(propSource, &properties);
@@ -638,7 +651,7 @@ void AFrameReader::processEntitySourceReferences(const AFrameReader::StringDicti
             continue;
         }
 
-        const QString &sourceUrl = helper_getResourceURL(srcDictionary.value(sourceRef._srcReference));
+        const QString &sourceUrl = srcDictionary.value(sourceRef._srcReference);
         qDebug() << "Processing EntityProp - " << sourceRef._entityPropData->getName() << " -> Source: " << sourceUrl;
         
         const bool processedSource = helper_assignModelSourceUrl(sourceUrl, entityPropData);
@@ -988,11 +1001,18 @@ bool AFrameReader::processAssets() {
 
             if (assetSrc.isEmpty()) {
                 // Early Iteration Exit -- All assets are required to have an src specified.
-                qDebug() << "AFrameReader::processAssets detected asset " << assetId << " without required src component!";
+                qWarning() << "AFrameReader::processAssets detected asset " << assetId << " without required src component!";
                 continue;
             }
 
-            m_srcDictionary.insert(assetId, assetSrc);
+            const QString &resourceUrl = helper_getResourceURL(assetSrc);
+            if (resourceUrl.isEmpty()) {
+                // Early Iteration Exit -- This isn't a supported type of resource.
+                qWarning() << "AFrameReader::processAssets detected unsupported/unknown resource type: " << assetSrc;
+                continue;
+            }
+
+            m_srcDictionary.insert(assetId, resourceUrl);
 
             // TODO_WL21698:  Remove Debug Dump
             qDebug() << "----------";
