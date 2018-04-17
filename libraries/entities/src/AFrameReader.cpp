@@ -806,6 +806,10 @@ bool AFrameReader::processScene() {
     m_srcDictionary.clear();
     bool success = true;
     QXmlStreamReader::TokenType currentTokenType = QXmlStreamReader::NoToken;
+    auto handleEarlyIterationExit = [this]() {
+        m_propData.pop_back();
+    };
+
     while (!m_reader.atEnd()) {
 
         currentTokenType = m_reader.readNext();
@@ -842,109 +846,27 @@ bool AFrameReader::processScene() {
 
             m_propData.push_back(EntityItemProperties());
             EntityItemProperties &hifiProps = m_propData.back();
+            // Placeholder name until actually idName is queried.  This allows for better
+            // debug/warning/error statements than nameless entity would provide.
+            hifiProps.setName(elementName);
 
-            switch (elementType) {
-                case AFRAMETYPE_BOX: {
-                    hifiProps.setType(EntityTypes::Box);
-                    break;
-                }
-                case AFRAMETYPE_PLANE: {
-                    hifiProps.setType(EntityTypes::Shape);
-                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Quad));
-                    break;
-                }
-                case AFRAMETYPE_CYLINDER: {
-                    hifiProps.setType(EntityTypes::Shape);
-                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Cylinder));
-                    break;
-                }
-                case AFRAMETYPE_SPHERE: {
-                    hifiProps.setType(EntityTypes::Shape);
-                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Sphere));
-                    break;
-                }
-                case AFRAMETYPE_SKY: {
-                    hifiProps.setType(EntityTypes::Zone);
-                    hifiProps.setSkyboxMode(COMPONENT_MODE_ENABLED);
-                    hifiProps.setShapeType(SHAPE_TYPE_SPHERE);
-                    break;
-                }
-                case AFRAMETYPE_CIRCLE: {
-                    hifiProps.setType(EntityTypes::Shape);
-                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Circle));
-                    break;
-                }
-                case AFRAMETYPE_CONE: {
-                    hifiProps.setType(EntityTypes::Shape);
-                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Cone));
-                    break;
-                }
-                case AFRAMETYPE_TETRAHEDRON: {
-                    hifiProps.setType(EntityTypes::Shape);
-                    hifiProps.setShape(entity::stringFromShape(entity::Shape::Tetrahedron));
-                    break;
-                }
-                case AFRAMETYPE_LIGHT: {
-                    hifiProps.setType(EntityTypes::Light);
-                    break;
-                }
-                case AFRAMETYPE_TEXT: {
-                    hifiProps.setType(EntityTypes::Text);
-                    break;
-                }
-                case AFRAMETYPE_IMAGE: {
-                    hifiProps.setType(EntityTypes::Model);
-                    hifiProps.setShapeType(SHAPE_TYPE_BOX);
-                    hifiProps.setCollisionless(true);
-                    hifiProps.setDynamic(false);
-                    break;
-                }
-                case AFRAMETYPE_MODEL_OBJ: {
-                    hifiProps.setType(EntityTypes::Model);
-                    hifiProps.setShapeType(SHAPE_TYPE_SIMPLE_COMPOUND);
-                    hifiProps.setCollisionless(true);   // <- In the event that the import lands on top of the user's avatar.
-                    break;
-                }
-                default: {
-                    // EARLY ITERATION EXIT -- Unknown/invalid type encountered.
-                    qWarning() << "AFrameReader::processScene encountered unknown/invalid element: " << elementName;
-                    continue;
-                }
+            const ItemPropExitReason typeAssignmentResult = assignEntityType(elementType, hifiProps);
+            if (typeAssignmentResult != ITEM_PROP_EXIT_NORMAL) {
+                handleEarlyIterationExit();
+
+                // Early Iteration Exit
+                continue;
             }
 
-            if (hifiProps.getType() != EntityTypes::Unknown) {
+            const QXmlStreamAttributes attributes = m_reader.attributes();
+            const ItemPropExitReason attributeResult = processEntityAttributes(elementType, attributes, hifiProps);
+            if (attributeResult != ITEM_PROP_EXIT_NORMAL) {
+                handleEarlyIterationExit();
 
-                const AFrameElementProcessor &elementProcessor = elementProcessors[elementType];
-                const QXmlStreamAttributes attributes = m_reader.attributes();
-                
-                // For each attribute, process and record for entity properties.
-                if (attributes.hasAttribute(AFRAME_ID)) {
-                    hifiProps.setName(attributes.value(AFRAME_ID).toString());
-                } else {
-                    const int elementUnsubCount = elementUnnamedCounts[elementName]+1; //Unnamed count should be 1-based
-                    hifiProps.setName(elementName + "_" + QString::number(elementUnsubCount));
-                    elementUnnamedCounts[elementName] = elementUnsubCount;
-                }
+                // Early Iteration Exit
+                continue;
+            }
 
-                for each ( const AFrameComponentProcessor &componentProcessor in elementProcessor._componentProcessors) {
-                    componentProcessor.processFunc(componentProcessor, attributes, hifiProps);
-                }
-
-                if (hifiProps.getClientOnly()) {
-                    auto nodeList = DependencyManager::get<NodeList>();
-                    const QUuid myNodeID = nodeList->getSessionUUID();
-                    hifiProps.setOwningAvatarID(myNodeID);
-                }
-
-                // TODO_WL21698:  Remove Debug Dump
-                qDebug() << "-------------------------------------------------";
-                hifiProps.debugDump();
-                qDebug() << "*************************************************";
-                qDebug() << "*************************************************";
-                qDebug() << hifiProps;
-                qDebug() << "-------------------------------------------------";
-
-            } // End_if( getType != EntityTypes::Unknown )
         } // End_if( startElement )
     } // End_while( !atEnd )
 
@@ -1035,4 +957,116 @@ bool AFrameReader::processAssets() {
 
     qDebug() << "AFrameReader::processAssets EXITED... ";
     return success;
+}
+
+AFrameReader::ItemPropExitReason AFrameReader::assignEntityType(const AFrameType elementType, EntityItemProperties &hifiProps) {
+    switch (elementType) {
+        case AFRAMETYPE_BOX: {
+            hifiProps.setType(EntityTypes::Box);
+            break;
+        }
+        case AFRAMETYPE_PLANE: {
+            hifiProps.setType(EntityTypes::Shape);
+            hifiProps.setShape(entity::stringFromShape(entity::Shape::Quad));
+            break;
+        }
+        case AFRAMETYPE_CYLINDER: {
+            hifiProps.setType(EntityTypes::Shape);
+            hifiProps.setShape(entity::stringFromShape(entity::Shape::Cylinder));
+            break;
+        }
+        case AFRAMETYPE_SPHERE: {
+            hifiProps.setType(EntityTypes::Shape);
+            hifiProps.setShape(entity::stringFromShape(entity::Shape::Sphere));
+            break;
+        }
+        case AFRAMETYPE_SKY: {
+            hifiProps.setType(EntityTypes::Zone);
+            hifiProps.setSkyboxMode(COMPONENT_MODE_ENABLED);
+            hifiProps.setShapeType(SHAPE_TYPE_SPHERE);
+            break;
+        }
+        case AFRAMETYPE_CIRCLE: {
+            hifiProps.setType(EntityTypes::Shape);
+            hifiProps.setShape(entity::stringFromShape(entity::Shape::Circle));
+            break;
+        }
+        case AFRAMETYPE_CONE: {
+            hifiProps.setType(EntityTypes::Shape);
+            hifiProps.setShape(entity::stringFromShape(entity::Shape::Cone));
+            break;
+        }
+        case AFRAMETYPE_TETRAHEDRON: {
+            hifiProps.setType(EntityTypes::Shape);
+            hifiProps.setShape(entity::stringFromShape(entity::Shape::Tetrahedron));
+            break;
+        }
+        case AFRAMETYPE_LIGHT: {
+            hifiProps.setType(EntityTypes::Light);
+            break;
+        }
+        case AFRAMETYPE_TEXT: {
+            hifiProps.setType(EntityTypes::Text);
+            break;
+        }
+        case AFRAMETYPE_IMAGE: {
+            hifiProps.setType(EntityTypes::Model);
+            hifiProps.setShapeType(SHAPE_TYPE_BOX);
+            hifiProps.setCollisionless(true);
+            hifiProps.setDynamic(false);
+            break;
+        }
+        case AFRAMETYPE_MODEL_OBJ: {
+            hifiProps.setType(EntityTypes::Model);
+            hifiProps.setShapeType(SHAPE_TYPE_SIMPLE_COMPOUND);
+            hifiProps.setCollisionless(true);   // <- In the event that the import lands on top of the user's avatar.
+            break;
+        }
+        default: {
+            // EARLY ITERATION EXIT -- Unknown/invalid type encountered.
+            qWarning() << "AFrameReader::assignEntityType encountered unknown/invalid element: " << hifiProps.getName();
+            return ITEM_PROP_EXIT_UNKNOWN_TYPE;
+        }
+    }
+
+    return ITEM_PROP_EXIT_NORMAL;
+}
+
+AFrameReader::ItemPropExitReason AFrameReader::processEntityAttributes(const AFrameType elementType, const QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps) {
+
+    if (!elementProcessors.contains(elementType)) {
+        return ITEM_PROP_EXIT_UNKNOWN_TYPE;
+    }
+
+    const AFrameElementProcessor &elementProcessor = elementProcessors[elementType];
+
+    // For each attribute, process and record for entity properties.
+    if (attributes.hasAttribute(AFRAME_ID)) {
+        hifiProps.setName(attributes.value(AFRAME_ID).toString());
+    } else if (elementUnnamedCounts.contains(hifiProps.getName())) {
+        const QString elementName = hifiProps.getName();
+        const int elementUnsubCount = elementUnnamedCounts[elementName] + 1; //Unnamed count should be 1-based
+        hifiProps.setName(elementName + "_" + QString::number(elementUnsubCount));
+        elementUnnamedCounts[elementName] = elementUnsubCount;
+    }
+
+    for each (const AFrameComponentProcessor &componentProcessor in elementProcessor._componentProcessors) {
+        componentProcessor.processFunc(componentProcessor, attributes, hifiProps);
+    }
+
+    if (hifiProps.getClientOnly()) {
+        auto nodeList = DependencyManager::get<NodeList>();
+        const QUuid myNodeID = nodeList->getSessionUUID();
+        hifiProps.setOwningAvatarID(myNodeID);
+    }
+
+    // TODO_WL21698:  Remove Debug Dump
+    qDebug() << "-------------------------------------------------";
+    hifiProps.debugDump();
+    qDebug() << "*************************************************";
+    qDebug() << "*************************************************";
+    qDebug() << hifiProps;
+    qDebug() << "-------------------------------------------------";
+
+    return ITEM_PROP_EXIT_NORMAL;
 }

@@ -155,6 +155,14 @@ protected:
     bool processScene();
     bool processAssets();
 
+    enum ItemPropExitReason {
+        ITEM_PROP_EXIT_NORMAL,
+        ITEM_PROP_EXIT_UNKNOWN_TYPE,
+    };
+
+    ItemPropExitReason assignEntityType(AFrameType elementType, EntityItemProperties &hifiProps);
+    ItemPropExitReason processEntityAttributes(AFrameType elementType, const QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps);
+
     QXmlStreamReader m_reader;
     AFramePropList m_propData;
     StringDictionary m_srcDictionary;
