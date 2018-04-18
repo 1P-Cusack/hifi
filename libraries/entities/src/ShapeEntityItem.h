@@ -30,7 +30,12 @@ namespace entity {
         NUM_SHAPES,
     };
 
-    Shape shapeFromString(const ::QString& shapeString);
+    enum ShapeDefaultType {
+        DEFAULT_ON_ERROR,
+        NO_DEFAULT_ON_ERROR
+    };
+
+    Shape shapeFromString(const ::QString& shapeString, ShapeDefaultType defaultType = DEFAULT_ON_ERROR);
     ::QString stringFromShape(Shape shape);
 }
 

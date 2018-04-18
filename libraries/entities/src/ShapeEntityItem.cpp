@@ -64,16 +64,25 @@ namespace entity {
         "Cylinder" 
     } };
 
-    Shape shapeFromString(const ::QString& shapeString) {
+    Shape shapeFromString(const ::QString& shapeString, const ShapeDefaultType defaultType /*=DEFAULT_ON_ERROR*/) {
         for (size_t i = 0; i < shapeStrings.size(); ++i) {
             if (shapeString.toLower() == shapeStrings[i].toLower()) {
                 return static_cast<Shape>(i);
             }
         }
-        return Shape::Sphere;
+        
+        if (defaultType == DEFAULT_ON_ERROR) {
+            return Shape::Sphere;
+        }
+
+        return NUM_SHAPES;
     }
 
     ::QString stringFromShape(Shape shape) {
+        if (((int)shape < 0) || ((int)shape >= (int)NUM_SHAPES)) {
+            shape = Shape::Sphere;
+        }
+
         return shapeStrings[shape];
     }
 }

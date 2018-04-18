@@ -154,6 +154,7 @@ protected:
 
     bool processScene();
     bool processAssets();
+    bool processAFrameEntity(const QXmlStreamAttributes &attributes);
 
     enum ItemPropExitReason {
         ITEM_PROP_EXIT_NORMAL,
