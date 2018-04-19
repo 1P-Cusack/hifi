@@ -75,8 +75,23 @@ public:
         ASSET_CONTROL_TYPE_ASSET_ITEM,
         ASSET_CONTROL_TYPE_ASSET_IMAGE,
         ASSET_CONTROL_TYPE_IMG,
+        ASSET_CONTROL_TYPE_MIXIN,
 
         ASSET_CONTROL_TYPE_COUNT
+    };
+
+    enum EntityComponent {
+        ENTITY_COMPONENT_GEOMETRY,
+        ENTITY_COMPONENT_IMAGE,
+        ENTITY_COMPONENT_LIGHT,
+        ENTITY_COMPONENT_MATERIAL,
+        ENTITY_COMPONENT_POSITION,
+        ENTITY_COMPONENT_MIXIN,
+        ENTITY_COMPONENT_MODEL_OBJ,
+        ENTITY_COMPONENT_ROTATION,
+        ENTITY_COMPONENT_TEXT,
+
+        ENTITY_COMPONENT_COUNT
     };
 
     //! AFrameComponentProcessor represents component conversion information.  It contains
@@ -112,6 +127,13 @@ public:
     typedef QList<EntityItemProperties> AFramePropList;
     typedef QHash<QString, QString> StringDictionary;
     typedef QHash<QString, SourceReference> SourceReferenceDictionary;
+    typedef QHash<QString, QXmlStreamAttributes> MixinDictionary;
+
+    typedef std::pair<const EntityComponent, const QString> EntityComponentPair;
+    typedef std::pair<const QString, const QString> ComponentPropertyPair;
+    typedef QVector< ComponentPropertyPair > ComponentProperties;
+    typedef QHash<QString, ComponentProperties> ComponentPropertiesTable;
+    typedef ComponentPropertiesTable::iterator IterComponentProperties;
 
     static void registerAFrameConversionHandlers();
     static void noteEntitySourceReference(const QString &srcReference, EntityItemProperties &entityPropData);
@@ -154,19 +176,28 @@ protected:
 
     bool processScene();
     bool processAssets();
-    bool processAFrameEntity(const QXmlStreamAttributes &attributes);
 
-    enum ItemPropExitReason {
-        ITEM_PROP_EXIT_NORMAL,
-        ITEM_PROP_EXIT_UNKNOWN_TYPE,
+    enum EntityProcessExitReason {
+        PROCESS_EXIT_NORMAL,
+        PROCESS_EXIT_INVALID_INPUT,
+        PROCESS_EXIT_EMPTY_MIXIN_DICTIONARY,
+        PROCESS_EXIT_EMPTY_SRC_DICTIONARY,
+        PROCESS_EXIT_UNKNOWN_TYPE
     };
 
-    ItemPropExitReason assignEntityType(AFrameType elementType, EntityItemProperties &hifiProps);
-    ItemPropExitReason processEntityAttributes(AFrameType elementType, const QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps);
+    EntityProcessExitReason processAFrameEntity(const QXmlStreamAttributes &attributes);
+
+    EntityProcessExitReason assignEntityType(AFrameType elementType, EntityItemProperties &hifiProps);
+    EntityProcessExitReason processEntityAttributes(AFrameType elementType, const QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps);
+
+    bool isSupportedEntityComponent(const QString &componentName) const;
+    bool isSupportedEntityComponent(EntityComponent componentType) const;
+    int populateComponentPropertiesTable(const QXmlStreamAttribute &component, ComponentPropertiesTable &componentsTable);
 
     QXmlStreamReader m_reader;
     AFramePropList m_propData;
     StringDictionary m_srcDictionary;
+    MixinDictionary m_mixinDictionary;
 };
 
 #endif

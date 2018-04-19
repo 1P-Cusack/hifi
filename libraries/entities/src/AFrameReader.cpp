@@ -46,6 +46,7 @@ const float DEFAULT_ROTATION_VALUE = 0.0f;
 const float DEFAULT_GENERAL_VALUE = 1.0f;
 
 const int DEFAULT_PROPERTY_PAIR_RESERVE = 10;
+const int DEFAULT_MIXIN_ATTRIBUTE_RESERVE = 25;
 
 const char * const IMAGE_EXTENSIONS[] = { // TODO_WL21698:  Is this centralized somewhere?
     ".jpg",
@@ -114,13 +115,62 @@ const std::array< QString, AFrameReader::AFRAMECOMPONENT_COUNT > AFRAME_COMPONEN
 const std::array< QString, AFrameReader::ASSET_CONTROL_TYPE_COUNT > AFRAME_ASSET_CONTROL_NAMES { {
     "a-asset-item",
     "a-asset-image",
-    "img"
+    "img",
+    "a-mixin"
+    }
+};
+
+const std::array<const AFrameReader::EntityComponentPair, AFrameReader::ENTITY_COMPONENT_COUNT> ENTITY_COMPONENTS = { {
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_GEOMETRY, "geometry" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_IMAGE, "image" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_LIGHT, "light" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_MATERIAL, "material" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_POSITION, "position" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_MIXIN, "mixin" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_MODEL_OBJ, "obj-model" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_ROTATION, "rotation" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_TEXT, "text" },
     }
 };
 
 AFrameReader::ElementProcessors AFrameReader::elementProcessors = AFrameReader::ElementProcessors();
 AFrameReader::ElementUnnamedCounts AFrameReader::elementUnnamedCounts = AFrameReader::ElementUnnamedCounts();
 AFrameReader::SourceReferenceDictionary AFrameReader::entitySrcReferences = AFrameReader::SourceReferenceDictionary();
+
+AFrameReader::AFrameType getElementTypeForShape(const entity::Shape shapeType) {
+    switch (shapeType) {
+        case entity::Circle:
+            return AFrameReader::AFRAMETYPE_CIRCLE;
+        case entity::Cone:
+            return AFrameReader::AFRAMETYPE_CONE;
+        case entity::Cube:
+            return AFrameReader::AFRAMETYPE_BOX;
+        case entity::Cylinder:
+            return AFrameReader::AFRAMETYPE_CYLINDER;
+        case entity::Quad:
+            return AFrameReader::AFRAMETYPE_PLANE;
+        case entity::Sphere:
+            return AFrameReader::AFRAMETYPE_SPHERE;
+        case entity::Tetrahedron:
+            return AFrameReader::AFRAMETYPE_TETRAHEDRON;
+        case entity::Triangle:
+            return AFrameReader::AFRAMETYPE_TRIANGLE;
+        default: {
+            qWarning() << "AFrameReader::getElementTypeForShape - Encountered invalid/unknown shape: " << shapeType;
+            return AFrameReader::AFRAMETYPE_COUNT;
+        }
+    }
+}
+
+bool isShapeSupported(const entity::Shape shape) {
+    for (int shapeIndex = 0; shapeIndex < NUM_SUPPORTED_SHAPES; ++shapeIndex) {
+        if (shape == SUPPORTED_SHAPES[shapeIndex]) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 bool hasImageExtension( const QString &fileName ) {
     if ( fileName.isEmpty() ) {
@@ -818,6 +868,7 @@ bool AFrameReader::processScene() {
 
     m_propData.clear();
     m_srcDictionary.clear();
+    m_mixinDictionary.clear();
     bool success = true;
     QXmlStreamReader::TokenType currentTokenType = QXmlStreamReader::NoToken;
     auto handleEarlyIterationExit = [this]() {
@@ -834,7 +885,7 @@ bool AFrameReader::processScene() {
 
         if (m_reader.isStartElement())
         {
-            const QString elementName = m_reader.name().toString();
+            QString elementName = m_reader.name().toString();
 
             // Assets section is expected to be first section under
             // the scene; however, checking status here and allowing
@@ -845,10 +896,17 @@ bool AFrameReader::processScene() {
                 processAssets();
 
                 if (!m_reader.isStartElement()) {
+                    // Early Iteration Exit -- likely reached the end, for loop check as opposed
+                    // to breaking just in case.
                     continue;
                 }
-            } else if (elementName == AFRAME_ENTITY) {
+
+                elementName = m_reader.name().toString();
+            }
+            
+            if (elementName == AFRAME_ENTITY) {
                 processAFrameEntity(m_reader.attributes());
+                // Early Iteration Exit -- entity properties, if valid, have been processed and noted
                 continue;
             }
 
@@ -868,8 +926,8 @@ bool AFrameReader::processScene() {
             // debug/warning/error statements than nameless entity would provide.
             hifiProps.setName(elementName);
 
-            const ItemPropExitReason typeAssignmentResult = assignEntityType(elementType, hifiProps);
-            if (typeAssignmentResult != ITEM_PROP_EXIT_NORMAL) {
+            const EntityProcessExitReason typeAssignmentResult = assignEntityType(elementType, hifiProps);
+            if (typeAssignmentResult != PROCESS_EXIT_NORMAL) {
                 handleEarlyIterationExit();
 
                 // Early Iteration Exit
@@ -877,8 +935,8 @@ bool AFrameReader::processScene() {
             }
 
             const QXmlStreamAttributes attributes = m_reader.attributes();
-            const ItemPropExitReason attributeResult = processEntityAttributes(elementType, attributes, hifiProps);
-            if (attributeResult != ITEM_PROP_EXIT_NORMAL) {
+            const EntityProcessExitReason attributeResult = processEntityAttributes(elementType, attributes, hifiProps);
+            if (attributeResult != PROCESS_EXIT_NORMAL) {
                 handleEarlyIterationExit();
 
                 // Early Iteration Exit
@@ -921,10 +979,10 @@ bool AFrameReader::processAssets() {
         if (m_reader.isStartElement())
         {
             const QString &elementName = m_reader.name().toString();
-            const AssetControlType elementType = getTypeForAssetElementName(elementName);
-            if (elementType == ASSET_CONTROL_TYPE_COUNT) {
+            const AssetControlType controlType = getTypeForAssetElementName(elementName);
+            if (controlType == ASSET_CONTROL_TYPE_COUNT) {
                 const AFrameType elementType = getTypeForElementName(elementName);
-                if (elementType != AFRAMETYPE_COUNT) {
+                if ((elementType != AFRAMETYPE_COUNT) || (elementName == AFRAME_ENTITY)) {
                     qDebug() << "AFrameReader::processAssets EXITING due to - " << elementName;
 
                     // Early Loop Exit -- encountered primitive/non-asset type
@@ -938,33 +996,46 @@ bool AFrameReader::processAssets() {
 
             qDebug() << "AFrameReader::processAssets detected - " << elementName;
             const QXmlStreamAttributes attributes = m_reader.attributes();
-            const QString &assetSrc = attributes.value(getNameForComponent(AFRAMECOMPONENT_SOURCE)).toString();
             const QString &assetId = attributes.value(AFRAME_ID).toString();
             if (assetId.isEmpty()) {
                 // Early Iteration Exit -- All assets required to have an id specified.
-                qWarning() << "AFrameReader::processAssets detected missing id component for asset " << assetSrc << "!";
+                qWarning() << "AFrameReader::processAssets detected missing id component for asset!";
                 continue;
             }
 
-            if (assetSrc.isEmpty()) {
-                // Early Iteration Exit -- All assets are required to have an src specified.
-                qWarning() << "AFrameReader::processAssets detected asset " << assetId << " without required src component!";
-                continue;
-            }
+            switch (controlType) {
+                // Intentional fall through of ASSET_CONTROL_TYPE_ASSET_IMAGE - ASSET_CONTROL_TYPE_IMG
+                case ASSET_CONTROL_TYPE_ASSET_IMAGE:
+                case ASSET_CONTROL_TYPE_ASSET_ITEM:
+                case ASSET_CONTROL_TYPE_IMG: {
+                    const QString &assetSrc = attributes.value(getNameForComponent(AFRAMECOMPONENT_SOURCE)).toString();
+                    if (assetSrc.isEmpty()) {
+                        // Early Iteration Exit -- All assets are required to have an src specified.
+                        qWarning() << "AFrameReader::processAssets detected asset " << assetId << " without required src component!";
+                        continue;
+                    }
 
-            const QString &resourceUrl = helper_getResourceURL(assetSrc);
-            if (resourceUrl.isEmpty()) {
-                // Early Iteration Exit -- This isn't a supported type of resource.
-                qWarning() << "AFrameReader::processAssets detected unsupported/unknown resource type: " << assetSrc;
-                continue;
-            }
+                    const QString &resourceUrl = helper_getResourceURL(assetSrc);
+                    if (resourceUrl.isEmpty()) {
+                        // Early Iteration Exit -- This isn't a supported type of resource.
+                        qWarning() << "AFrameReader::processAssets detected unsupported/unknown resource type: " << assetSrc;
+                        continue;
+                    }
 
-            m_srcDictionary.insert(assetId, resourceUrl);
+                    m_srcDictionary.insert(assetId, resourceUrl);
 
-            // TODO_WL21698:  Remove Debug Dump
-            qDebug() << "----------";
-            qDebug() << "AFrameReader::processAssets adding pair: " << assetId << " - " << assetSrc;
-            qDebug() << "**********";
+                    // TODO_WL21698:  Remove Debug Dump
+                    qDebug() << "----------";
+                    qDebug() << "AFrameReader::processAssets adding pair: " << assetId << " - " << assetSrc;
+                    qDebug() << "**********";
+
+                    break;
+                }
+                case ASSET_CONTROL_TYPE_MIXIN: {
+                    m_mixinDictionary.insert(assetId, attributes);
+                    break;
+                }
+            } // End_Switch( controlType )
         } // End_if( isStartElement )
     } // End_while( !atEnd )
 
@@ -977,7 +1048,228 @@ bool AFrameReader::processAssets() {
     return success;
 }
 
-AFrameReader::ItemPropExitReason AFrameReader::assignEntityType(const AFrameType elementType, EntityItemProperties &hifiProps) {
+AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QXmlStreamAttributes &attributes) {
+    if (attributes.isEmpty()) {
+        return PROCESS_EXIT_INVALID_INPUT;
+    }
+    qDebug() << "*************************************************";
+    qDebug() << "AFrameReader::processAelement ENTERED... ";
+
+    //StringDictionary elementComponents;
+    ComponentPropertiesTable elementComponents;
+    QXmlStreamAttributes entityAttributes;
+    int numProbableAttributes = 0;
+    for each (const QXmlStreamAttribute &component in attributes) {
+        const QString &componentName = component.name().toString();
+        if (!isSupportedEntityComponent(componentName)) {
+            // TODO_WL21698:  Should this be a warning?
+            qDebug() << "AFrameReader::processAFrameEntity encountered unknown/unsupported component: " << componentName;
+            continue;
+        }
+
+        if (elementComponents.contains(componentName)) {
+            qWarning() << "AFrameReader::processAFrameEntity encountered dupe component: " << componentName;
+        }
+
+        const int numComponentPairs = populateComponentPropertiesTable(component, elementComponents);
+        if (numComponentPairs <= 0) {
+            // Early Iteration Exit -- encountered error with component population
+            continue;
+        }
+
+        numProbableAttributes += numComponentPairs;
+
+    } // End_ForEach( Original Entity Component )
+
+    // Compose Attribute Vector
+    entityAttributes.reserve(numProbableAttributes);
+    const QString &mixinKey = ENTITY_COMPONENTS[ENTITY_COMPONENT_MIXIN].second;
+    bool needToResolveMixins = false;
+    IterComponentProperties iterComponentProperty = elementComponents.begin();
+    IterComponentProperties iterEndElementComponents = elementComponents.end();
+    for (; iterComponentProperty != iterEndElementComponents; ++iterComponentProperty) {
+        const ComponentProperties &componentProperties = iterComponentProperty.value();
+        if (iterComponentProperty.key() == mixinKey) {
+            needToResolveMixins = true;
+            // Early Iteration Exit -- mixins will be resolved after all direct attributes have been noted.
+            continue;
+        }
+
+        qDebug() << "\t\tNumProperties for " << iterComponentProperty.key() << ": " << componentProperties.size();
+        for each (const ComponentPropertyPair &propPair in componentProperties) {
+            entityAttributes.append(propPair.first, propPair.second);
+            qDebug() << "\t\t\tProperty: " << propPair.first << " Value: " << propPair.second;
+        }
+    }
+
+    // Resolve mixin attributes if need be...
+    if (needToResolveMixins) {
+        
+        if (m_mixinDictionary.isEmpty()) {
+            qWarning() << "AFrameReader::processAFrameEntity - Mixin Dictionary is empty. Ensure that asset block is first child of the scene!";
+            return PROCESS_EXIT_EMPTY_MIXIN_DICTIONARY;
+        }
+
+        const ComponentPropertyPair &mixinComponent = elementComponents[mixinKey].back();
+        const QStringList &mixinIds = mixinComponent.second.split(QRegExp("\\s+"), QString::SkipEmptyParts);
+        QXmlStreamAttributes attributeContributions;
+        attributeContributions.reserve(DEFAULT_MIXIN_ATTRIBUTE_RESERVE);
+        ComponentPropertiesTable mixComponentTable;
+
+        QStringList::const_reverse_iterator const rIterEndMixinId = mixinIds.rend();
+        for (auto rIterMixinId = mixinIds.rbegin(); rIterMixinId != rIterEndMixinId; ++rIterMixinId) {
+            const QString &mixinName = (*rIterMixinId);
+            qDebug() << "MixinName: " << (*rIterMixinId);
+            if (!m_mixinDictionary.contains(mixinName)) {
+                qWarning() << "AFrameReader::processAFrameEntity - Couldn't find expected mixin: " << mixinName;
+                // Early Iteration Exit
+                continue;
+            }
+
+            const QXmlStreamAttributes &mixinAttributes = m_mixinDictionary[mixinName];
+            for each (const QXmlStreamAttribute &attribute in mixinAttributes) {
+                const QString &attributeName = attribute.name().toString();
+                if (attributeName == AFRAME_ID) {
+                    // Early Iteration Exit -- Entities don't inherit the mixin id, so bypass
+                    continue;
+                }
+
+                if (entityAttributes.hasAttribute(attributeName)) {
+                    // Early Iteration Exit -- direct entity spec of property has supremacy
+                    continue;
+                }
+
+                if (attributeContributions.hasAttribute(attributeName)) {
+                    // Early Iteration Exit -- Reverse iteration means recent spec of the property has already been noted
+                    continue;
+                }
+
+                const int numMixPairs = populateComponentPropertiesTable(attribute, mixComponentTable);
+                if (numMixPairs <= 0) {
+                    // Early Iteration Exit -- encountered error with component population
+                    continue;
+                }
+
+                attributeContributions.push_back(attribute);
+                qDebug() << "\t\t\tProperty(Mixin): " << attribute.name() << " Value: " << attribute.value();
+            } // End_ForEach( mixinAttribute )
+        } // End_For[Reverse]( mixinId )
+
+        // Add mixin contributions to entityAttributes
+        ComponentPropertiesTable::const_iterator const iterMixPropertyEnd = mixComponentTable.end();
+        for (auto iterMixProperty = mixComponentTable.begin(); iterMixProperty != iterMixPropertyEnd; ++iterMixProperty) {
+            const ComponentProperties &mixProperties = iterMixProperty.value();
+            qDebug() << "\t\tNumProperties for Mix_" << iterMixProperty.key() << ": " << mixProperties.size();
+            elementComponents[iterMixProperty.key()] = iterMixProperty.value();
+            for each (const ComponentPropertyPair &propPair in mixProperties) {
+                entityAttributes.append(propPair.first, propPair.second);
+                qDebug() << "\t\t\tMix_Property: " << propPair.first << " Value: " << propPair.second;
+            }
+        }
+
+        needToResolveMixins = false;
+        for each (const QXmlStreamAttribute &finalAttribute in entityAttributes) {
+            qDebug() << "Final_Attribute: " << finalAttribute.name() << " - " << finalAttribute.value();
+        }
+    } // End_If( needToResolveMixins )
+
+    // Construct EntityItemProperty based on determined element type
+    AFrameType elementType = AFRAMETYPE_COUNT;
+    QList<QString> componentKeys = elementComponents.keys();
+    for each (const QString &key in componentKeys) {
+        QString queryKey("a-");
+        queryKey.append(key.toLower());
+        for each (const QString &convenienceType in AFRAME_ELEMENT_NAMES) {
+            if (queryKey == convenienceType) {
+                elementType = getTypeForElementName(convenienceType);
+                m_propData.push_back(EntityItemProperties());
+                EntityItemProperties &hifiProps = m_propData.back();
+                // Placeholder name until actually idName is queried.  This allows for better
+                // debug/warning/error statements than nameless entity would provide.
+                hifiProps.setName(convenienceType);
+                const EntityProcessExitReason typeAssignmentExitReason = assignEntityType(elementType, hifiProps);
+                if (typeAssignmentExitReason != PROCESS_EXIT_NORMAL) {
+                    m_propData.pop_back();
+                    return typeAssignmentExitReason;
+                }
+
+                const EntityProcessExitReason attributeResult = processEntityAttributes(elementType, entityAttributes, hifiProps);
+                if (attributeResult != PROCESS_EXIT_NORMAL) {
+                    m_propData.pop_back();
+                    return attributeResult;
+                }
+
+                qDebug() << "AFrameReader::processAelement EXITTED... ";
+                qDebug() << "*************************************************";
+
+                return PROCESS_EXIT_NORMAL;
+            }
+        }
+    }
+
+    // There wasn't a higher priority type found, thus check to see if it's just a geometry/shape
+    // type and go from there.
+    const QString &geometryKey = ENTITY_COMPONENTS[(int)ENTITY_COMPONENT_GEOMETRY].second;
+    if (componentKeys.contains(geometryKey)) {
+    //if (entityAttributes.hasAttribute(geometryKey)) {
+        const ComponentProperties &geometryProps = elementComponents[geometryKey];
+        for each (const ComponentPropertyPair &propPair in geometryProps) {
+            if (propPair.first != "primitive") {
+                continue;
+            }
+
+            QString queryVal = propPair.second.toLower();
+            if (queryVal == "box") {
+                queryVal = "cube";
+            }
+            else if (queryVal == "plane") {
+                queryVal = "quad";
+            }
+
+            const entity::Shape shape = entity::shapeFromString(queryVal, entity::NO_DEFAULT_ON_ERROR);
+            const bool isSupportedShape = isShapeSupported(shape);
+            if (!isSupportedShape) {
+                return PROCESS_EXIT_UNKNOWN_TYPE;
+            }
+
+            elementType = getElementTypeForShape(shape);
+            if (elementType == AFRAMETYPE_COUNT) {
+                return PROCESS_EXIT_UNKNOWN_TYPE;
+            }
+
+            m_propData.push_back(EntityItemProperties());
+            EntityItemProperties &hifiProps = m_propData.back();
+            // Placeholder name until actually idName is queried.  This allows for better
+            // debug/warning/error statements than nameless entity would provide.
+            hifiProps.setName(getElementNameForType(elementType));
+            const EntityProcessExitReason typeAssignmentExitReason = assignEntityType(elementType, hifiProps);
+            if (typeAssignmentExitReason != PROCESS_EXIT_NORMAL) {
+                m_propData.pop_back();
+                return typeAssignmentExitReason;
+            }
+
+            const EntityProcessExitReason attributeResult = processEntityAttributes(elementType, entityAttributes, hifiProps);
+            if (attributeResult != PROCESS_EXIT_NORMAL) {
+                m_propData.pop_back();
+                return attributeResult;
+            }
+
+            qDebug() << "AFrameReader::processAelement EXITTED... ";
+            qDebug() << "*************************************************";
+
+            return PROCESS_EXIT_NORMAL;
+        }
+    }
+
+    qDebug() << "AFrameReader::processAFrameEntity - Encountered unknown/unsupported custom a-entity.";
+
+    qDebug() << "AFrameReader::processAelement EXITTED... ";
+    qDebug() << "*************************************************";
+
+    return PROCESS_EXIT_UNKNOWN_TYPE;
+}
+
+AFrameReader::EntityProcessExitReason AFrameReader::assignEntityType(const AFrameType elementType, EntityItemProperties &hifiProps) {
     switch (elementType) {
         case AFRAMETYPE_BOX: {
             hifiProps.setType(EntityTypes::Box);
@@ -1043,17 +1335,17 @@ AFrameReader::ItemPropExitReason AFrameReader::assignEntityType(const AFrameType
         default: {
             // EARLY ITERATION EXIT -- Unknown/invalid type encountered.
             qWarning() << "AFrameReader::assignEntityType encountered unknown/invalid element: " << hifiProps.getName();
-            return ITEM_PROP_EXIT_UNKNOWN_TYPE;
+            return PROCESS_EXIT_UNKNOWN_TYPE;
         }
     }
 
-    return ITEM_PROP_EXIT_NORMAL;
+    return PROCESS_EXIT_NORMAL;
 }
 
-AFrameReader::ItemPropExitReason AFrameReader::processEntityAttributes(const AFrameType elementType, const QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps) {
+AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(const AFrameType elementType, const QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps) {
 
     if (!elementProcessors.contains(elementType)) {
-        return ITEM_PROP_EXIT_UNKNOWN_TYPE;
+        return PROCESS_EXIT_UNKNOWN_TYPE;
     }
 
     const AFrameElementProcessor &elementProcessor = elementProcessors[elementType];
@@ -1086,50 +1378,17 @@ AFrameReader::ItemPropExitReason AFrameReader::processEntityAttributes(const AFr
     qDebug() << hifiProps;
     qDebug() << "-------------------------------------------------";
 
-    return ITEM_PROP_EXIT_NORMAL;
+    return PROCESS_EXIT_NORMAL;
 }
 
-
-enum EntityComponent {
-    ENTITY_COMPONENT_GEOMETRY,
-    ENTITY_COMPONENT_IMAGE,
-    ENTITY_COMPONENT_LIGHT,
-    ENTITY_COMPONENT_MATERIAL,
-    ENTITY_COMPONENT_POSITION,
-    ENTITY_COMPONENT_MIXIN,
-    ENTITY_COMPONENT_MODEL_OBJ,
-    ENTITY_COMPONENT_ROTATION,
-    ENTITY_COMPONENT_TEXT,
-
-    ENTITY_COMPONENT_COUNT
-};
-typedef std::pair<const EntityComponent, const QString> EntityComponentPair;
-const std::array<const EntityComponentPair, ENTITY_COMPONENT_COUNT> ENTITY_COMPONENTS = {
-    {
-        EntityComponentPair{ ENTITY_COMPONENT_GEOMETRY, "geometry" },
-        EntityComponentPair{ ENTITY_COMPONENT_IMAGE, "image" },
-        EntityComponentPair{ ENTITY_COMPONENT_LIGHT, "light" },
-        EntityComponentPair{ ENTITY_COMPONENT_MATERIAL, "material" },
-        EntityComponentPair{ ENTITY_COMPONENT_POSITION, "position" },
-        EntityComponentPair{ ENTITY_COMPONENT_MIXIN, "mixin" },
-        EntityComponentPair{ ENTITY_COMPONENT_MODEL_OBJ, "obj-model" },
-        EntityComponentPair{ ENTITY_COMPONENT_ROTATION, "rotation" },
-        EntityComponentPair{ ENTITY_COMPONENT_TEXT, "text" },
-    }
-};
-typedef std::pair<const QString, const QString> ComponentPropertyPair;
-typedef QVector< ComponentPropertyPair > ComponentProperties;
-typedef QHash<QString, ComponentProperties> ComponentPropertiesTable;
-typedef ComponentPropertiesTable::iterator IterComponentProperties;
-
-bool isSupportedEntityComponent(const QString &componentName) {
-    if ( componentName.isEmpty()) {
+bool AFrameReader::isSupportedEntityComponent(const QString &componentName) const {
+    if (componentName.isEmpty()) {
         return false;
     }
 
     const QString &queryName = componentName.toLower();
-    for each ( const EntityComponentPair &componentPair in ENTITY_COMPONENTS ) {
-        if ( queryName != componentPair.second ) {
+    for each (const EntityComponentPair &componentPair in ENTITY_COMPONENTS) {
+        if (queryName != componentPair.second) {
             continue;
         }
 
@@ -1139,7 +1398,7 @@ bool isSupportedEntityComponent(const QString &componentName) {
     return false;
 }
 
-bool isSupportedEntityComponent(const EntityComponent componentType) {
+bool AFrameReader::isSupportedEntityComponent(const EntityComponent componentType) const {
     if (((int)componentType < 0) || ((int)componentType >= (int)ENTITY_COMPONENT_COUNT)) {
         return false;
     }
@@ -1155,204 +1414,43 @@ bool isSupportedEntityComponent(const EntityComponent componentType) {
     return false;
 }
 
-bool isShapeSupported(const entity::Shape shape) {
-    for (int shapeIndex = 0; shapeIndex < NUM_SUPPORTED_SHAPES; ++shapeIndex) {
-        if (shape == SUPPORTED_SHAPES[shapeIndex]) {
-            return true;
-        }
+int AFrameReader::populateComponentPropertiesTable(const QXmlStreamAttribute &component, ComponentPropertiesTable &componentsTable) {
+    const QString &componentName = component.name().toString();
+    const QString &componentValue = component.value().toString();
+    const QStringList &propertyPairs = componentValue.split(QRegExp(";\\s*"), QString::SkipEmptyParts);
+    const int numPairs = propertyPairs.size();
+    if (numPairs == 0) {
+        qWarning() << "AFrameReader::populateComponentPropertiesTable - Encountered invalid Component Specification: " << componentValue;
+        return 0;
     }
 
-    return false;
-}
-
-AFrameReader::AFrameType getElementTypeForShape(const entity::Shape shapeType) {
-    switch (shapeType) {
-        case entity::Circle:
-            return AFrameReader::AFRAMETYPE_CIRCLE;
-        case entity::Cone:
-            return AFrameReader::AFRAMETYPE_CONE;
-        case entity::Cube:
-            return AFrameReader::AFRAMETYPE_BOX;
-        case entity::Cylinder:
-            return AFrameReader::AFRAMETYPE_CYLINDER;
-        case entity::Quad:
-            return AFrameReader::AFRAMETYPE_PLANE;
-        case entity::Sphere:
-            return AFrameReader::AFRAMETYPE_SPHERE;
-        case entity::Tetrahedron:
-            return AFrameReader::AFRAMETYPE_TETRAHEDRON;
-        case entity::Triangle:
-            return AFrameReader::AFRAMETYPE_TRIANGLE;
+    // TODO_WL21698: Additional filtering to avoid adding components with no supported properties?
+    componentsTable[componentName].reserve(numPairs);
+    for each (const QString propertyPairString in propertyPairs) {
+        const QStringList &propertyInfo = propertyPairString.split(QRegExp(":\\s*"), QString::SkipEmptyParts);
+        const int numInfo = propertyInfo.size();
+        switch (numInfo) {
+        case 1: { // This occurs when the component has a direct assignment as opposed to a listing of property pairs.
+            componentsTable[componentName].push_back(ComponentPropertyPair{ componentName, propertyInfo[0] });
+            break;
+        }
+        case 2: {
+            componentsTable[componentName].push_back(ComponentPropertyPair{ propertyInfo[0], propertyInfo[1] });
+            break;
+        }
         default: {
-            qWarning() << "AFrameReader::getElementTypeForShape - Encountered invalid/unknown shape: " << shapeType;
-            return AFrameReader::AFRAMETYPE_COUNT;
-        }
-    }
-}
-
-bool AFrameReader::processAFrameEntity(const QXmlStreamAttributes &attributes) {
-    if (attributes.isEmpty()) {
-        return false;
-    }
-    qDebug() << "*************************************************";
-    qDebug() << "AFrameReader::processAelement ENTERED... ";
-
-    //StringDictionary elementComponents;
-    ComponentPropertiesTable elementComponents;
-    QXmlStreamAttributes entityAttributes;
-    int numProbableAttributes = 0;
-    for each ( const QXmlStreamAttribute &component in attributes) {
-        const QString &componentName = component.name().toString();
-        if (!isSupportedEntityComponent(componentName)) {
-            // TODO_WL21698:  Should this be a warning?
-            qDebug() << "AFrameReader::processAFrameEntity encountered unknown/unsupported component: " << componentName;
+            qWarning() << "AFrameReader::processAFrameEntity - Encountered invalid propertyPair: " << propertyPairString;
+            // Early Iteration Exit
             continue;
         }
-
-        if (elementComponents.contains(componentName)) {
-            qWarning() << "AFrameReader::processAFrameEntity encountered dupe component: " << componentName;
         }
 
-        const QString componentValue = component.value().toString();
-        const QStringList &propertyPairs = componentValue.split(QRegExp(";\\s*"), QString::SkipEmptyParts);
-        const int numPairs = propertyPairs.size();
-        if (numPairs == 0 ) {
-            qWarning() << "AFrameReader::processAFrameEntity - Encountered invalid Component Specification: " << componentValue;
-            continue;
-        }
+        // TODO_WL21698: Remove this as it's for debugging only
+        const ComponentPropertyPair &propPair = componentsTable[componentName].back();
+        qDebug() << "\tComponent: " << componentName << "- Property: " << propPair.first << " Value: " << propPair.second;
+        // ----------------
+    } // End_ForEach( Component Property Pair )
 
-        // TODO_WL21698: Additional filtering to avoid adding components with no supported properties?
-        elementComponents[componentName].reserve(numPairs);
-        numProbableAttributes += numPairs;
-        for each ( const QString propertyPairString in propertyPairs ) {
-            const QStringList &propertyInfo = propertyPairString.split(QRegExp(":\\s*"), QString::SkipEmptyParts);
-            const int numInfo = propertyInfo.size();
-            switch (numInfo) {
-                case 1: {
-                    elementComponents[componentName].push_back(ComponentPropertyPair{ componentName, propertyInfo[0] });
-                    break;
-                }
-                case 2: {
-                    elementComponents[componentName].push_back(ComponentPropertyPair{ propertyInfo[0], propertyInfo[1] });
-                    break;
-                }
-                default: {
-                    qWarning() << "AFrameReader::processAFrameEntity - Encountered invalid propertyPair: " << propertyPairString;
-                    // Early Iteration Exit
-                    continue;
-                }
-            }
-
-            // TODO_WL21698: Remove this as it's for debugging only
-            const ComponentPropertyPair &propPair = elementComponents[componentName].back();
-            qDebug() << "\tComponent: " << componentName << "- Property: " << propPair.first << " Value: " << propPair.second;
-            // ----------------
-        } // End_ForEach( Component Property Pair )
-    } // End_ForEach( Original Entity Component )
-
-    // Compose Attribute Vector
-    entityAttributes.reserve(numProbableAttributes);
-    IterComponentProperties iterComponentProperty = elementComponents.begin();
-    IterComponentProperties iterEndElementComponents = elementComponents.end();
-    for (; iterComponentProperty != iterEndElementComponents; ++iterComponentProperty) {
-        const ComponentProperties &componentProperties = iterComponentProperty.value();
-        qDebug() << "\t\tNumProperties for " << iterComponentProperty.key() << ": " << componentProperties.size();
-        for each (const ComponentPropertyPair &propPair in componentProperties) {
-            entityAttributes.append(propPair.first, propPair.second);
-            qDebug() << "\t\t\tProperty: " << propPair.first << " Value: " << propPair.second;
-        }
-    }
-
-    // Construct EntityItemProperty based on determined element type
-    AFrameType elementType = AFRAMETYPE_COUNT;
-    QList<QString> componentKeys = elementComponents.keys();
-    for each ( const QString &key in componentKeys ) {
-        QString queryKey("a-");
-        queryKey.append(key.toLower());
-        for each ( const QString &convenienceType in AFRAME_ELEMENT_NAMES ) {
-            if ( queryKey == convenienceType ) {
-                elementType = getTypeForElementName(convenienceType);
-                m_propData.push_back(EntityItemProperties());
-                EntityItemProperties &hifiProps = m_propData.back();
-                // Placeholder name until actually idName is queried.  This allows for better
-                // debug/warning/error statements than nameless entity would provide.
-                hifiProps.setName(convenienceType);
-                const ItemPropExitReason typeAssignmentExitReason = assignEntityType(elementType, hifiProps);
-                if (typeAssignmentExitReason != ITEM_PROP_EXIT_NORMAL) {
-                    m_propData.pop_back();
-                    return false;
-                }
-
-                const ItemPropExitReason attributeResult = processEntityAttributes(elementType, entityAttributes, hifiProps);
-                if (attributeResult != ITEM_PROP_EXIT_NORMAL) {
-                    m_propData.pop_back();
-                    return false;
-                }
-
-                qDebug() << "AFrameReader::processAelement EXITTED... ";
-                qDebug() << "*************************************************";
-
-                return true;
-            }
-        }
-    }
-
-    // There wasn't a higher priority type found, thus check to see if it's just a geometry/shape
-    // type and go from there.
-    const QString &geometryKey = ENTITY_COMPONENTS[(int)ENTITY_COMPONENT_GEOMETRY].second;
-    if ( componentKeys.contains(geometryKey) ) {
-        const ComponentProperties &geometryProps = elementComponents[geometryKey];
-        for each (const ComponentPropertyPair &propPair in geometryProps) {
-            if ( propPair.first != "primitive" ) {
-                continue;
-            }
-
-            QString queryVal = propPair.second.toLower();
-            if (queryVal == "box") {
-                queryVal = "cube";
-            } else if (queryVal == "plane") {
-                queryVal = "quad";
-            }
-
-            const entity::Shape shape = entity::shapeFromString(queryVal, entity::NO_DEFAULT_ON_ERROR);
-            const bool isSupportedShape = isShapeSupported(shape);
-            if (!isSupportedShape) {
-                return false;
-            }
-
-            elementType = getElementTypeForShape(shape);
-            if (elementType == AFRAMETYPE_COUNT) {
-                return false;
-            }
-
-            m_propData.push_back(EntityItemProperties());
-            EntityItemProperties &hifiProps = m_propData.back();
-            // Placeholder name until actually idName is queried.  This allows for better
-            // debug/warning/error statements than nameless entity would provide.
-            hifiProps.setName(getElementNameForType(elementType));
-            const ItemPropExitReason typeAssignmentExitReason = assignEntityType(elementType, hifiProps);
-            if (typeAssignmentExitReason != ITEM_PROP_EXIT_NORMAL) {
-                m_propData.pop_back();
-                return false;
-            }
-
-            const ItemPropExitReason attributeResult = processEntityAttributes(elementType, entityAttributes, hifiProps);
-            if (attributeResult != ITEM_PROP_EXIT_NORMAL) {
-                m_propData.pop_back();
-                return false;
-            }
-
-            qDebug() << "AFrameReader::processAelement EXITTED... ";
-            qDebug() << "*************************************************";
-
-            return true;
-        }
-    }
-
-    qWarning() << "AFrameReader::processAFrameEntity - Failed to process a-entity for some reason (you shouldn't be seeing this)!";
-
-    qDebug() << "AFrameReader::processAelement EXITTED... ";
-    qDebug() << "*************************************************";
-
-    return false;
+    return numPairs;
 }
+
