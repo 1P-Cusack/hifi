@@ -307,18 +307,44 @@ xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes, const xC
         return defaultColor;
     }
     
-    const int hashIndex = colorStr.indexOf('#');
-    if (hashIndex == 0) {
-        colorStr = colorStr.mid(1);
-    }
-    else if (hashIndex > 0) {
-        colorStr = colorStr.remove(hashIndex, 1);
-    }
-    const int hexValue = colorStr.toInt(Q_NULLPTR, 16);
+    // Types of color specifications
+    //      #ffff
+    //      rgb(0,0,0)
+    //      0 0 0
+    //      0, 0, 0
+    //      color word (ie: "blue", "maroon") - this isn't supported so should trigger defaultColor return
     xColor color;
-    color.red = (colorPart)(hexValue >> 16);
-    color.green = (colorPart)((hexValue & 0x00FF00) >> 8);
-    color.blue = (colorPart)(hexValue & 0x0000FF);
+    const QString rgbPrefix("rgb(");
+    const int hashIndex = colorStr.indexOf('#');
+    if (hashIndex >= 0) {
+        if (hashIndex != 0) {
+            return defaultColor;
+        }
+
+        colorStr = colorStr.mid(1);
+        const int hexValue = colorStr.toInt(Q_NULLPTR, 16);
+        color.red = (colorPart)(hexValue >> 16);
+        color.green = (colorPart)((hexValue & 0x00FF00) >> 8);
+        color.blue = (colorPart)(hexValue & 0x0000FF);
+
+        return color;
+    }
+    
+    if (colorStr.startsWith(rgbPrefix,Qt::CaseInsensitive)) {
+        colorStr = colorStr.mid(rgbPrefix.size(), (colorStr.size() - rgbPrefix.size())-1);
+    } else if (!colorStr[0].isDigit()) {
+        return defaultColor;
+    }
+
+    const QStringList &colorChannelValues = colorStr.split(QRegExp("\\s+|\\s*,"), QString::SkipEmptyParts);
+    const int numColorChannels = colorChannelValues.size();
+    if (numColorChannels == 0) {
+        return defaultColor;
+    }
+
+    color.red = (numColorChannels >= 1 ? (colorPart)colorChannelValues[0].toInt() : defaultColor.red);
+    color.green = (numColorChannels >= 2 ? (colorPart)colorChannelValues[1].toInt() : defaultColor.green);
+    color.blue = (numColorChannels >= 3 ? (colorPart)colorChannelValues[2].toInt() : defaultColor.blue);
 
     return color;
 }
@@ -451,7 +477,7 @@ QString helper_getResourceURL(const QString &resourceName) {
     const QString inlineURLStart(INLINE_URL_START);
     QString url;
     if (resourceName.startsWith(inlineURLStart, Qt::CaseInsensitive)) {
-        url = resourceName.mid(inlineURLStart.size(), resourceName.size() - 1);
+        url = resourceName.mid(inlineURLStart.size(), (inlineURLStart.size() - resourceName.size()) - 1);
     } else {
         url = resourceName;
     }
