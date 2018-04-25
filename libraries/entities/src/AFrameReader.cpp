@@ -18,7 +18,8 @@
 #include "ShapeEntityItem.h"
 #include "TextEntityItem.h"
 
-//#define AFRAME_DEBUG_NOTES //< Turns on debug note prints for this file.
+#define AFRAME_DEBUG_NOTES 0 //< Turns on debug note prints for this file.
+#define AFRAME_DEBUG_STACK 1
 
 #ifndef CALC_ELEMENTS_OF
 #define CALC_ELEMENTS_OF(a)   (sizeof(a)/sizeof((a)[0]))
@@ -232,6 +233,7 @@ void processPosition(const AFrameReader::AFrameComponentProcessor &component, co
     QList<float> values;
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_POSITION_VALUE);
     parseVec3(elementAttributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_POSITION), QRegExp("\\s+"), defaultValue, values);
+
     properties.setPosition(glm::vec3(values.at(0), values.at(1), values.at(2)));
 }
 
@@ -856,7 +858,7 @@ bool AFrameReader::isAssetElementTypeValid(const AssetControlType elementType) {
 
 bool AFrameReader::read(const QByteArray &aframeData) {
     m_reader.addData(aframeData);
-    
+
     QXmlStreamReader::TokenType currentTokenType = QXmlStreamReader::NoToken;
     while ( !m_reader.atEnd() ){
         currentTokenType = m_reader.readNext();
@@ -892,7 +894,10 @@ bool AFrameReader::processScene() {
         return false;
     }
 
+    qDebug() << "AFrameReader::processScene ENTERED... ";
+
     m_propData.clear();
+    m_parseStack.clear();
     m_srcDictionary.clear();
     m_mixinDictionary.clear();
     bool success = true;
@@ -909,8 +914,7 @@ bool AFrameReader::processScene() {
             break;
         }
 
-        if (m_reader.isStartElement())
-        {
+        if (m_reader.isStartElement()) {
             QString elementName = m_reader.name().toString();
 
             // Assets section is expected to be first section under
@@ -960,7 +964,7 @@ bool AFrameReader::processScene() {
                 continue;
             }
 
-            const QXmlStreamAttributes attributes = m_reader.attributes();
+            QXmlStreamAttributes attributes = m_reader.attributes();
             const EntityProcessExitReason attributeResult = processEntityAttributes(elementType, attributes, hifiProps);
             if (attributeResult != PROCESS_EXIT_NORMAL) {
                 handleEarlyIterationExit();
@@ -969,7 +973,39 @@ bool AFrameReader::processScene() {
                 continue;
             }
 
-        } // End_if( startElement )
+        } else if (m_reader.isEndElement()) {
+            if ( m_parseStack.isEmpty() ) {
+                // Early Iteration Exit --
+                continue;
+            }
+
+            const QString &endElementName = m_reader.name().toString();
+            if (endElementName != AFRAME_ENTITY) {
+                const AFrameType elementType = getTypeForElementName(endElementName);
+                if (elementType == AFRAMETYPE_COUNT) {
+                    // Early Iteration Exit
+                    continue;
+                }
+                else if (!elementProcessors.contains(elementType)) {
+                    // Early Iteration Exit
+                    continue;
+                }
+            }
+
+            const ParseNode &parseTop = m_parseStack.top();
+            const EntityItemProperties * const mostRecentEntity = &m_propData.back();
+            if ( isParseTop(mostRecentEntity) ) {
+                qDebug() << "AFrameReader::processScene - Popping ParseNode: " << parseTop.name << "(" << parseTop.hifiProps << ")";
+                m_parseStack.pop();
+            } else {
+                // TODO_WL21698:  Is there a more graceful way to recover than to ignore it?
+                // If the cause is because the document data the internal reader internals should catch it, so
+                // the other reasons would be due to wrapper flow...
+                Q_ASSERT(parseTop.hifiProps == mostRecentEntity);
+                qWarning() << "AFrameReader::processScene - Encountered mismatched parse pop!  Expected: " << parseTop.hifiProps << ", but got: " << mostRecentEntity;
+            }
+            
+        }// End_if( startElement/endElement )
     } // End_while( !atEnd )
 
     processEntitySourceReferences(m_srcDictionary);
@@ -979,6 +1015,8 @@ bool AFrameReader::processScene() {
         qWarning() << "AFrameReader::read encountered error: " << m_reader.errorString();
         success = false;
     }
+
+    qDebug() << "AFrameReader::processScene EXITTED... ";
 
     return success;
 }
@@ -1368,7 +1406,7 @@ AFrameReader::EntityProcessExitReason AFrameReader::assignEntityType(const AFram
     return PROCESS_EXIT_NORMAL;
 }
 
-AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(const AFrameType elementType, const QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps) {
+AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(const AFrameType elementType, QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps) {
 
     if (!elementProcessors.contains(elementType)) {
         return PROCESS_EXIT_UNKNOWN_TYPE;
@@ -1396,15 +1434,34 @@ AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(cons
         hifiProps.setOwningAvatarID(myNodeID);
     }
 
+    m_parseStack.push({ hifiProps.getName(), &hifiProps, QXmlStreamAttributes() });
+    ParseNode &parseTop = m_parseStack.top();
+    parseTop.attributes.swap(attributes);
+    qDebug() << "AFrameReader::processEntityAttributes - Pushing ParseNode: " << parseTop.name << "(" << parseTop.hifiProps << ")";
+
     // TODO_WL21698:  Remove Debug Dump
+#if AFRAME_DEBUG_NOTES >= 1
     qDebug() << "-------------------------------------------------";
     hifiProps.debugDump();
     qDebug() << "*************************************************";
     qDebug() << "*************************************************";
     qDebug() << hifiProps;
     qDebug() << "-------------------------------------------------";
+#endif
 
     return PROCESS_EXIT_NORMAL;
+}
+
+bool AFrameReader::isParseTop(const EntityItemProperties * const hifiProps) const {
+    if (hifiProps == nullptr) {
+        return false;
+    }
+
+    if ( m_parseStack.isEmpty() ) {
+        return false;
+    }
+
+    return (hifiProps == &m_propData.back()) && (m_parseStack.top().hifiProps == hifiProps);
 }
 
 bool AFrameReader::isSupportedEntityComponent(const QString &componentName) const {

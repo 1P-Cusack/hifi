@@ -12,6 +12,7 @@
 
 #include <QXmlStreamReader>
 #include <QMap>
+#include <QStack>
 #include <QVariant>
 
 class EntityItemProperties;
@@ -124,7 +125,14 @@ public:
         EntityItemProperties * _entityPropData;
     };
 
+    struct ParseNode {
+        QString name;
+        const EntityItemProperties * hifiProps;
+        QXmlStreamAttributes attributes;
+    };
+
     typedef QList<EntityItemProperties> AFramePropList;
+    typedef QStack<ParseNode> AFrameParseStack;
     typedef QHash<QString, QString> StringDictionary;
     typedef QHash<QString, SourceReference> SourceReferenceDictionary;
     typedef QHash<QString, QXmlStreamAttributes> MixinDictionary;
@@ -188,14 +196,16 @@ protected:
     EntityProcessExitReason processAFrameEntity(const QXmlStreamAttributes &attributes);
 
     EntityProcessExitReason assignEntityType(AFrameType elementType, EntityItemProperties &hifiProps);
-    EntityProcessExitReason processEntityAttributes(AFrameType elementType, const QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps);
+    EntityProcessExitReason processEntityAttributes(AFrameType elementType, QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps);
 
+    bool isParseTop(const EntityItemProperties * hifiProps) const;
     bool isSupportedEntityComponent(const QString &componentName) const;
     bool isSupportedEntityComponent(EntityComponent componentType) const;
     int populateComponentPropertiesTable(const QXmlStreamAttribute &component, ComponentPropertiesTable &componentsTable);
 
     QXmlStreamReader m_reader;
     AFramePropList m_propData;
+    AFrameParseStack m_parseStack;
     StringDictionary m_srcDictionary;
     MixinDictionary m_mixinDictionary;
 };
