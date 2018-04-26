@@ -28,7 +28,6 @@
 const char AFRAME_SCENE[] = "a-scene";
 const char AFRAME_ASSETS[] = "a-assets";
 const char AFRAME_ENTITY[] = "a-entity";
-const char AFRAME_ID[] = "id";
 const char COMMON_ELEMENTS_KEY[] = "common_elements";
 const char DIRECTIONAL_LIGHT_NAME[] = "directional";
 const char SPOT_LIGHT_NAME[] = "spot";
@@ -99,6 +98,7 @@ const std::array< QString, AFrameReader::AFRAMECOMPONENT_COUNT > AFRAME_COMPONEN
     "color",
     "depth",
     "height",
+    "id",
     "intensity",
     "lineHeight",
     "position",
@@ -123,6 +123,7 @@ const std::array< QString, AFrameReader::ASSET_CONTROL_TYPE_COUNT > AFRAME_ASSET
 
 const std::array<const AFrameReader::EntityComponentPair, AFrameReader::ENTITY_COMPONENT_COUNT> ENTITY_COMPONENTS = { {
         AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_GEOMETRY, "geometry" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_ID, "id" },
         AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_IMAGE, "image" },
         AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_LIGHT, "light" },
         AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_MATERIAL, "material" },
@@ -130,8 +131,15 @@ const std::array<const AFrameReader::EntityComponentPair, AFrameReader::ENTITY_C
         AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_MIXIN, "mixin" },
         AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_MODEL_OBJ, "obj-model" },
         AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_ROTATION, "rotation" },
-        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_TEXT, "text" },
+        AFrameReader::EntityComponentPair{ AFrameReader::ENTITY_COMPONENT_TEXT, "text" }
     }
+};
+
+const std::array<const AFrameReader::BaseEntityComponentPair, AFrameReader::BASE_ENTITY_COMPONENT_COUNT> BASE_ENTITY_COMPONENTS = { {
+        AFrameReader::BaseEntityComponentPair{ AFrameReader::BASE_ENTITY_COMPONENT_MIXIN, "mixin" },
+        AFrameReader::BaseEntityComponentPair{ AFrameReader::BASE_ENTITY_COMPONENT_POSITION, "position" },
+        AFrameReader::BaseEntityComponentPair{ AFrameReader::BASE_ENTITY_COMPONENT_ROTATION, "rotation" },
+        }
 };
 
 AFrameReader::ElementProcessors AFrameReader::elementProcessors = AFrameReader::ElementProcessors();
@@ -229,7 +237,8 @@ float parseFloat(const QString &parseKey, const QXmlStreamAttributes &elementAtt
     return defaultValue;
 }
 
-void processPosition(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processPosition(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const parentNode) {
     QList<float> values;
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_POSITION_VALUE);
     parseVec3(elementAttributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_POSITION), QRegExp("\\s+"), defaultValue, values);
@@ -237,14 +246,16 @@ void processPosition(const AFrameReader::AFrameComponentProcessor &component, co
     properties.setPosition(glm::vec3(values.at(0), values.at(1), values.at(2)));
 }
 
-void processRotation(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processRotation(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const parentNode) {
     QList<float> values;
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_ROTATION_VALUE);
     parseVec3(elementAttributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_ROTATION), QRegExp("\\s+"), defaultValue, values);
     properties.setRotation(glm::vec3(values.at(0), values.at(1), values.at(2)));
 }
 
-void processSphereDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processSphereDimensions(const AFrameReader::AFrameComponentProcessor &component
+    , const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (properties.dimensionsChanged()) {
         return;
     }
@@ -256,7 +267,8 @@ void processSphereDimensions(const AFrameReader::AFrameComponentProcessor &compo
     properties.setDimensions(glm::vec3(sphericalDimension, sphericalDimension, sphericalDimension));
 }
 
-void processCylinderDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processCylinderDimensions(const AFrameReader::AFrameComponentProcessor &component, 
+    const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (properties.dimensionsChanged()) {
         return;
     }
@@ -273,7 +285,8 @@ void processCylinderDimensions(const AFrameReader::AFrameComponentProcessor &com
     properties.setDimensions(glm::vec3(diameter, dimensionY, diameter));
 }
 
-void processCircleDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processCircleDimensions(const AFrameReader::AFrameComponentProcessor &component, 
+    const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (properties.dimensionsChanged()) {
         return;
     }
@@ -286,7 +299,8 @@ void processCircleDimensions(const AFrameReader::AFrameComponentProcessor &compo
     properties.setDimensions(glm::vec3(diameter, 0.0f, diameter));
 }
 
-void processConeDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processConeDimensions(const AFrameReader::AFrameComponentProcessor &component
+    , const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (properties.dimensionsChanged()) {
         return;
     }
@@ -351,7 +365,8 @@ xColor helper_parseColor(const QXmlStreamAttributes &elementAttributes, const xC
     return color;
 }
 
-void processColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (!elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_COLOR))) {
         return;
     }
@@ -360,7 +375,8 @@ void processColor(const AFrameReader::AFrameComponentProcessor &component, const
     properties.setColor(color);
 }
 
-void processSkyColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processSkyColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (!elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_COLOR))) {
         return;
     }
@@ -369,12 +385,14 @@ void processSkyColor(const AFrameReader::AFrameComponentProcessor &component, co
     properties.getSkybox().setColor(color);
 }
 
-void processTextColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processTextColor(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     const xColor color = helper_parseColor(elementAttributes, TextEntityItem::DEFAULT_TEXT_COLOR);
     properties.setTextColor(color);
 }
 
-void processDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processDimensions(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (properties.dimensionsChanged()) {
         return;
     }
@@ -396,7 +414,8 @@ float helper_parseIntensity(const QXmlStreamAttributes &elementAttributes, const
     return parseFloat(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_INTENSITY), elementAttributes, splitExp, defaultValue);
 }
 
-void processIntensity(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processIntensity(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     QRegExp splitExp("\\s+");
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_GENERAL_VALUE);
     const float intensity = helper_parseIntensity(elementAttributes, splitExp, defaultValue);
@@ -404,7 +423,8 @@ void processIntensity(const AFrameReader::AFrameComponentProcessor &component, c
     properties.setIntensity(intensity);
 }
 
-void processLightType(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processLightType(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (!elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_TYPE))) {
         return;
     }
@@ -426,7 +446,8 @@ void processLightType(const AFrameReader::AFrameComponentProcessor &component, c
     }
 }
 
-void processText(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processText(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const parentNode) {
     QString displayText = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_VALUE)).toString();
 
     if (displayText.isEmpty()) {
@@ -434,10 +455,12 @@ void processText(const AFrameReader::AFrameComponentProcessor &component, const 
     }
 
     properties.setText(displayText);
-    processDimensions({ component.componentType, component.elementType, QVariant(), nullptr }, elementAttributes, properties);
+    processDimensions({ component.componentType, component.elementType, QVariant(), nullptr }, 
+        elementAttributes, properties, parentNode);
 }
 
-void processLineHeight(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processLineHeight(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     float lineHeight = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : TextEntityItem::DEFAULT_LINE_HEIGHT);
 
     if (elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_LINE_HEIGHT))) {
@@ -447,7 +470,8 @@ void processLineHeight(const AFrameReader::AFrameComponentProcessor &component, 
     properties.setLineHeight(lineHeight);
 }
 
-void processTextSide(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processTextSide(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
     if (!elementAttributes.hasAttribute(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_SIDE))) {
         return;
     }
@@ -525,7 +549,8 @@ bool helper_assignModelSourceUrl(const QString &sourceUrl, EntityItemProperties 
     return false;
 }
 
-void processSource(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties) {
+void processSource(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
+    EntityItemProperties &properties, const AFrameReader::ParseNode * const) {
 
     const QString sourceName = elementAttributes.value(AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_SOURCE)).toString();
     if (sourceName.isEmpty()) {
@@ -856,6 +881,34 @@ bool AFrameReader::isAssetElementTypeValid(const AssetControlType elementType) {
     return ((int)elementType >= 0) && ((int)elementType < (int)ASSET_CONTROL_TYPE_COUNT);
 }
 
+QString AFrameReader::getNameForBaseComponent(const BaseEntityComponent componentType) {
+    if (!isBaseEntityComponentValid(componentType)) {
+        return QString();
+    }
+
+    return BASE_ENTITY_COMPONENTS[(int)componentType].second;
+}
+
+AFrameReader::BaseEntityComponent AFrameReader::getBaseComponentForName(const QString &componentName) {
+    if (componentName.isEmpty()) {
+        return BASE_ENTITY_COMPONENT_COUNT;
+    }
+
+    for each (const BaseEntityComponentPair &basePair in BASE_ENTITY_COMPONENTS) {
+        if (componentName != basePair.second) {
+            continue;
+        }
+
+        return basePair.first;
+    }
+
+    return BASE_ENTITY_COMPONENT_COUNT;
+}
+
+bool AFrameReader::isBaseEntityComponentValid(const BaseEntityComponent componentType) {
+    return ((int)componentType >= 0) && ((int)componentType < (int)BASE_ENTITY_COMPONENT_COUNT);
+}
+
 bool AFrameReader::read(const QByteArray &aframeData) {
     m_reader.addData(aframeData);
 
@@ -965,6 +1018,11 @@ bool AFrameReader::processScene() {
             }
 
             QXmlStreamAttributes attributes = m_reader.attributes();
+            if (attributes.isEmpty()) {
+                // Early Iteration Exit
+                continue;
+            }
+
             const EntityProcessExitReason attributeResult = processEntityAttributes(elementType, attributes, hifiProps);
             if (attributeResult != PROCESS_EXIT_NORMAL) {
                 handleEarlyIterationExit();
@@ -1060,7 +1118,7 @@ bool AFrameReader::processAssets() {
 
             qDebug() << "AFrameReader::processAssets detected - " << elementName;
             const QXmlStreamAttributes attributes = m_reader.attributes();
-            const QString &assetId = attributes.value(AFRAME_ID).toString();
+            const QString &assetId = attributes.value(getNameForComponent(AFRAMECOMPONENT_ID)).toString();
             if (assetId.isEmpty()) {
                 // Early Iteration Exit -- All assets required to have an id specified.
                 qWarning() << "AFrameReader::processAssets detected missing id component for asset!";
@@ -1116,6 +1174,7 @@ AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QX
     if (attributes.isEmpty()) {
         return PROCESS_EXIT_INVALID_INPUT;
     }
+
     qDebug() << "*************************************************";
     qDebug() << "AFrameReader::processAelement ENTERED... ";
 
@@ -1191,9 +1250,10 @@ AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QX
             }
 
             const QXmlStreamAttributes &mixinAttributes = m_mixinDictionary[mixinName];
+            const QString &aframeIdKey = ENTITY_COMPONENTS[ENTITY_COMPONENT_ID].second;
             for each (const QXmlStreamAttribute &attribute in mixinAttributes) {
                 const QString &attributeName = attribute.name().toString();
-                if (attributeName == AFRAME_ID) {
+                if (attributeName == aframeIdKey) {
                     // Early Iteration Exit -- Entities don't inherit the mixin id, so bypass
                     continue;
                 }
@@ -1239,7 +1299,7 @@ AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QX
 
     // Construct EntityItemProperty based on determined element type
     AFrameType elementType = AFRAMETYPE_COUNT;
-    QList<QString> componentKeys = elementComponents.keys();
+    const QList<QString> &componentKeys = elementComponents.keys();
     for each (const QString &key in componentKeys) {
         QString queryKey("a-");
         queryKey.append(key.toLower());
@@ -1325,7 +1385,72 @@ AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QX
         }
     }
 
-    qDebug() << "AFrameReader::processAFrameEntity - Encountered unknown/unsupported custom a-entity.";
+    // See if this is a parent entity, which A-Frame allows without a given type component.
+    const QString &aframeIdKey = ENTITY_COMPONENTS[ENTITY_COMPONENT_ID].second;
+    const int numComponentKeys = componentKeys.size();
+    for each (const QString &key in componentKeys) {
+        for each (const BaseEntityComponentPair &coreComponentPair in BASE_ENTITY_COMPONENTS) {
+            if (key == coreComponentPair.second) {
+                continue;
+            } else if (key == aframeIdKey && (numComponentKeys > 1)) {
+                // Id component shouldn't invalidate the entry as long as there's more data to validate with.
+                continue;
+            }
+
+            qDebug() << "AFrameReader::processAFrameEntity - Encountered unknown/unsupported custom a-entity.";
+            return PROCESS_EXIT_UNKNOWN_TYPE;
+        }
+    }
+
+    // This is a parent data node, so set it up...
+    m_propData.push_back(EntityItemProperties());
+    EntityItemProperties &hifiProps = m_propData.back();
+    if (entityAttributes.hasAttribute(aframeIdKey)) {
+        hifiProps.setName(attributes.value(aframeIdKey).toString());
+    } else {
+        QString parentNodeName("ParentDataElement_");
+        QTextStream(&parentNodeName) << &hifiProps;
+        hifiProps.setName(parentNodeName);
+    }
+
+    const ParseNode * const parentNode = getParentNode();
+    for each (const QXmlStreamAttribute &nodeAttribute in entityAttributes) {
+        const QString &nodeName = nodeAttribute.name().toString();
+        const BaseEntityComponent baseComponentType = getBaseComponentForName(nodeName);
+
+        switch (baseComponentType) {
+            case BASE_ENTITY_COMPONENT_POSITION: {
+                processPosition(AFrameComponentProcessor(), entityAttributes, hifiProps, parentNode);
+                break;
+            }
+            case BASE_ENTITY_COMPONENT_ROTATION: {
+                processRotation(AFrameComponentProcessor(), entityAttributes, hifiProps, parentNode);
+                break;
+            }
+            case BASE_ENTITY_COMPONENT_MIXIN: {
+                // Shouldn't here as this has been resolved prior to this point; however,
+                // if this happens, then warn and continue...
+                qWarning() << "AFrameReader::processAFrameEntity - ParentDataElement unexpectedly still has mixin component.";
+                continue;
+            }
+            default: {
+                if (baseComponentType == BASE_ENTITY_COMPONENT_COUNT) {
+                    if (nodeName != aframeIdKey) {
+                        qWarning() << "AFrameReader::processAFrameEntity - Encountered uknown/unsupported BaseEntityComponent: " << nodeName;
+                        continue;
+                    }
+
+                    // Do Nothing - name is the first thing set up
+                }
+                break;
+            }
+        }
+    }
+
+    m_parseStack.push({ hifiProps.getName(), &hifiProps, QXmlStreamAttributes() });
+    ParseNode &parseTop = m_parseStack.top();
+    parseTop.attributes.swap(entityAttributes);
+    qDebug() << "AFrameReader::processAFrameEntity - Pushing ParseNode: " << parseTop.name << "(" << parseTop.hifiProps << ")";
 
     qDebug() << "AFrameReader::processAelement EXITTED... ";
     qDebug() << "*************************************************";
@@ -1415,8 +1540,9 @@ AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(cons
     const AFrameElementProcessor &elementProcessor = elementProcessors[elementType];
 
     // For each attribute, process and record for entity properties.
-    if (attributes.hasAttribute(AFRAME_ID)) {
-        hifiProps.setName(attributes.value(AFRAME_ID).toString());
+    const QString &aframeIdKey = getNameForComponent(AFRAMECOMPONENT_ID);
+    if (attributes.hasAttribute(aframeIdKey)) {
+        hifiProps.setName(attributes.value(aframeIdKey).toString());
     } else {
         const QString elementName = hifiProps.getName();
         const int elementUnsubCount = elementUnnamedCounts[elementName] + 1; //Unnamed count should be 1-based
@@ -1424,8 +1550,9 @@ AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(cons
         elementUnnamedCounts[elementName] = elementUnsubCount;
     }
 
+    const ParseNode * const parentNode = getParentNode();
     for each (const AFrameComponentProcessor &componentProcessor in elementProcessor._componentProcessors) {
-        componentProcessor.processFunc(componentProcessor, attributes, hifiProps);
+        componentProcessor.processFunc(componentProcessor, attributes, hifiProps, parentNode);
     }
 
     if (hifiProps.getClientOnly()) {
@@ -1464,6 +1591,11 @@ bool AFrameReader::isParseTop(const EntityItemProperties * const hifiProps) cons
     return (hifiProps == &m_propData.back()) && (m_parseStack.top().hifiProps == hifiProps);
 }
 
+const AFrameReader::ParseNode * AFrameReader::getParentNode() const {
+    const int parseDepth = m_parseStack.size();
+    return ((parseDepth >= 1) ? &(m_parseStack[(parseDepth - 1)]) : nullptr);
+}
+
 bool AFrameReader::isSupportedEntityComponent(const QString &componentName) const {
     if (componentName.isEmpty()) {
         return false;
@@ -1497,6 +1629,39 @@ bool AFrameReader::isSupportedEntityComponent(const EntityComponent componentTyp
     return false;
 }
 
+bool AFrameReader::isBaseEntityComponent(const QString &componentName) const {
+    if (componentName.isEmpty()) {
+        return false;
+    }
+
+    const QString &queryName = componentName.toLower();
+    for each (const BaseEntityComponentPair &componentPair in BASE_ENTITY_COMPONENTS) {
+        if (queryName != componentPair.second) {
+            continue;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+bool AFrameReader::isBaseEntityComponent(const BaseEntityComponent componentType) const {
+    if (((int)componentType < 0) || ((int)componentType >= (int)BASE_ENTITY_COMPONENT_COUNT)) {
+        return false;
+    }
+
+    for each (const BaseEntityComponentPair &componentPair in BASE_ENTITY_COMPONENTS) {
+        if (componentType != componentPair.first) {
+            continue;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 int AFrameReader::populateComponentPropertiesTable(const QXmlStreamAttribute &component, ComponentPropertiesTable &componentsTable) {
     const QString &componentName = component.name().toString();
     const QString &componentValue = component.value().toString();
@@ -1513,19 +1678,19 @@ int AFrameReader::populateComponentPropertiesTable(const QXmlStreamAttribute &co
         const QStringList &propertyInfo = propertyPairString.split(QRegExp(":\\s*"), QString::SkipEmptyParts);
         const int numInfo = propertyInfo.size();
         switch (numInfo) {
-        case 1: { // This occurs when the component has a direct assignment as opposed to a listing of property pairs.
-            componentsTable[componentName].push_back(ComponentPropertyPair{ componentName, propertyInfo[0] });
-            break;
-        }
-        case 2: {
-            componentsTable[componentName].push_back(ComponentPropertyPair{ propertyInfo[0], propertyInfo[1] });
-            break;
-        }
-        default: {
-            qWarning() << "AFrameReader::processAFrameEntity - Encountered invalid propertyPair: " << propertyPairString;
-            // Early Iteration Exit
-            continue;
-        }
+            case 1: { // This occurs when the component has a direct assignment as opposed to a listing of property pairs.
+                componentsTable[componentName].push_back(ComponentPropertyPair{ componentName, propertyInfo[0] });
+                break;
+            }
+            case 2: {
+                componentsTable[componentName].push_back(ComponentPropertyPair{ propertyInfo[0], propertyInfo[1] });
+                break;
+            }
+            default: {
+                qWarning() << "AFrameReader::processAFrameEntity - Encountered invalid propertyPair: " << propertyPairString;
+                // Early Iteration Exit
+                continue;
+            }
         }
 
         // TODO_WL21698: Remove this as it's for debugging only

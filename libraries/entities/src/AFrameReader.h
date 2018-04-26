@@ -52,6 +52,7 @@ public:
         AFRAMECOMPONENT_COLOR,
         AFRAMECOMPONENT_DEPTH,
         AFRAMECOMPONENT_HEIGHT,
+        AFRAMECOMPONENT_ID,
         AFRAMECOMPONENT_INTENSITY,
         AFRAMECOMPONENT_LINE_HEIGHT,
         AFRAMECOMPONENT_POSITION,
@@ -83,6 +84,7 @@ public:
 
     enum EntityComponent {
         ENTITY_COMPONENT_GEOMETRY,
+        ENTITY_COMPONENT_ID,
         ENTITY_COMPONENT_IMAGE,
         ENTITY_COMPONENT_LIGHT,
         ENTITY_COMPONENT_MATERIAL,
@@ -95,13 +97,27 @@ public:
         ENTITY_COMPONENT_COUNT
     };
 
+    //! Base Entity Components are the components which make up
+    //! the minimum viable pool of components that indicate an a-entity, sans
+    //! supported type, that can be noted on the parse stack.  If an component
+    //! aside from any within this pool are found within the attributes, then that
+    //! a-entity will be rejected as invalid.
+    enum BaseEntityComponent {
+        BASE_ENTITY_COMPONENT_MIXIN,
+        BASE_ENTITY_COMPONENT_POSITION,
+        BASE_ENTITY_COMPONENT_ROTATION,
+
+        BASE_ENTITY_COMPONENT_COUNT
+    };
+
+    struct ParseNode; // < Forward Dec needed for AFrameComponentProcessor
     //! AFrameComponentProcessor represents component conversion information.  It contains
     //! the AFrameComponent which it represents along with a default value if the component
     //! processFunc doesn't detect the component's presence within the specified element attributes.
     //! AFrameElementProcessors owns instances of AFrameComponentProcessors; as many needed to
     //! describe the AFrame Entity in High Fidelity Entity context.
     struct AFrameComponentProcessor {
-        typedef std::function<void(const AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties)> ProcessFunc;
+        typedef std::function<void(const AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, EntityItemProperties &properties, const ParseNode *parentNode)> ProcessFunc;
         AFrameComponent componentType;
         AFrameType elementType;
         QVariant componentDefault;
@@ -138,6 +154,7 @@ public:
     typedef QHash<QString, QXmlStreamAttributes> MixinDictionary;
 
     typedef std::pair<const EntityComponent, const QString> EntityComponentPair;
+    typedef std::pair<const BaseEntityComponent, const QString> BaseEntityComponentPair;
     typedef std::pair<const QString, const QString> ComponentPropertyPair;
     typedef QVector< ComponentPropertyPair > ComponentProperties;
     typedef QHash<QString, ComponentProperties> ComponentPropertiesTable;
@@ -158,6 +175,10 @@ public:
     static QString getNameForAssetElement(AssetControlType elementType);
     static AssetControlType getTypeForAssetElementName(const QString &elementName);
     static bool isAssetElementTypeValid(AssetControlType elementType);
+
+    static QString getNameForBaseComponent(BaseEntityComponent componentType);
+    static BaseEntityComponent getBaseComponentForName(const QString &componentName);
+    static bool isBaseEntityComponentValid(BaseEntityComponent componentType);
 
     //! Parses the specified ByteArray looking for supported AFrame Elements.
     //! @return: True, iff the data was read and parsed without error.
@@ -199,8 +220,14 @@ protected:
     EntityProcessExitReason processEntityAttributes(AFrameType elementType, QXmlStreamAttributes &attributes, EntityItemProperties &hifiProps);
 
     bool isParseTop(const EntityItemProperties * hifiProps) const;
+    //! @note: Expects that in construction entities aren't pushed to the stack until their
+    //!        completely processed.
+    const ParseNode * getParentNode() const;
+
     bool isSupportedEntityComponent(const QString &componentName) const;
     bool isSupportedEntityComponent(EntityComponent componentType) const;
+    bool isBaseEntityComponent(const QString &componentName) const;
+    bool isBaseEntityComponent(BaseEntityComponent componentType) const;
     int populateComponentPropertiesTable(const QXmlStreamAttribute &component, ComponentPropertiesTable &componentsTable);
 
     QXmlStreamReader m_reader;
