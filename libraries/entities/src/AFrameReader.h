@@ -142,9 +142,22 @@ public:
     };
 
     struct ParseNode {
+        enum NodeType {
+            NODE_TYPE_FUNCTIONAL,
+            NODE_TYPE_REFERENCE,
+
+            NODE_TYPE_COUNT
+        };
+
+        struct PropData {
+            int index;
+            const EntityItemProperties * hifiProps;
+        };
+
         QString name;
-        const EntityItemProperties * hifiProps;
         QXmlStreamAttributes attributes;
+        PropData propData;
+        NodeType type { NODE_TYPE_COUNT };
     };
 
     typedef QList<EntityItemProperties> AFramePropList;

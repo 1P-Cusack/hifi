@@ -242,8 +242,19 @@ void processPosition(const AFrameReader::AFrameComponentProcessor &component, co
     QList<float> values;
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_POSITION_VALUE);
     parseVec3(elementAttributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_POSITION), QRegExp("\\s+"), defaultValue, values);
+    
+    glm::vec3 entityPos(values.at(0), values.at(1), values.at(2));
+    if (parentNode != nullptr) {
+        QList<float> parentValues;
+        parseVec3(parentNode->attributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_POSITION)
+            , QRegExp("\\s+"), DEFAULT_POSITION_VALUE, parentValues);
+        glm::vec3 parentPos(parentValues.at(0), parentValues.at(1), parentValues.at(2));
+        qDebug() << "Adding ParentNode: " << parentNode->name << " Position: " << parentPos << " to EntityChildPos: " << entityPos;
+        entityPos = entityPos + parentPos;
+        qDebug() << "\t\tFinal EntityChildPos: " << entityPos;
+    }
 
-    properties.setPosition(glm::vec3(values.at(0), values.at(1), values.at(2)));
+    properties.setPosition(entityPos);
 }
 
 void processRotation(const AFrameReader::AFrameComponentProcessor &component, const QXmlStreamAttributes &elementAttributes, 
@@ -1051,17 +1062,12 @@ bool AFrameReader::processScene() {
             }
 
             const ParseNode &parseTop = m_parseStack.top();
-            const EntityItemProperties * const mostRecentEntity = &m_propData.back();
-            if ( isParseTop(mostRecentEntity) ) {
-                qDebug() << "AFrameReader::processScene - Popping ParseNode: " << parseTop.name << "(" << parseTop.hifiProps << ")";
-                m_parseStack.pop();
-            } else {
-                // TODO_WL21698:  Is there a more graceful way to recover than to ignore it?
-                // If the cause is because the document data the internal reader internals should catch it, so
-                // the other reasons would be due to wrapper flow...
-                Q_ASSERT(parseTop.hifiProps == mostRecentEntity);
-                qWarning() << "AFrameReader::processScene - Encountered mismatched parse pop!  Expected: " << parseTop.hifiProps << ", but got: " << mostRecentEntity;
+            if (parseTop.type == ParseNode::NODE_TYPE_REFERENCE) {
+                m_propData.removeAt(parseTop.propData.index);
+                qDebug() << "AFrameReader::processScene - Removed ReferenceEntity: " << parseTop.name;
             }
+            m_parseStack.pop();
+            qDebug() << "AFrameReader::processScene - Popped ParseNode: " << parseTop.name << "(" << parseTop.propData.hifiProps << ")";
             
         }// End_if( startElement/endElement )
     } // End_while( !atEnd )
@@ -1385,14 +1391,15 @@ AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QX
         }
     }
 
-    // See if this is a parent entity, which A-Frame allows without a given type component.
+    // See if this is a data parent entity, which A-Frame allows without a given type component.
     const QString &aframeIdKey = ENTITY_COMPONENTS[ENTITY_COMPONENT_ID].second;
     const int numComponentKeys = componentKeys.size();
     for each (const QString &key in componentKeys) {
-        for each (const BaseEntityComponentPair &coreComponentPair in BASE_ENTITY_COMPONENTS) {
-            if (key == coreComponentPair.second) {
-                continue;
-            } else if (key == aframeIdKey && (numComponentKeys > 1)) {
+        const BaseEntityComponent keyBaseComponentId = getBaseComponentForName(key);
+        qDebug() << "\t\tEvaluating CompKey: " << key 
+            << " which has a BaseComponentId of: " << getNameForBaseComponent(keyBaseComponentId);
+        if (keyBaseComponentId == BASE_ENTITY_COMPONENT_COUNT) {
+            if (key == aframeIdKey && (numComponentKeys > 1)) {
                 // Id component shouldn't invalidate the entry as long as there's more data to validate with.
                 continue;
             }
@@ -1447,10 +1454,10 @@ AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QX
         }
     }
 
-    m_parseStack.push({ hifiProps.getName(), &hifiProps, QXmlStreamAttributes() });
+    m_parseStack.push({ hifiProps.getName(), QXmlStreamAttributes(), {m_propData.size()-1, &hifiProps}, ParseNode::NODE_TYPE_REFERENCE });
     ParseNode &parseTop = m_parseStack.top();
     parseTop.attributes.swap(entityAttributes);
-    qDebug() << "AFrameReader::processAFrameEntity - Pushing ParseNode: " << parseTop.name << "(" << parseTop.hifiProps << ")";
+    qDebug() << "AFrameReader::processAFrameEntity - Pushing ParseNode: " << parseTop.name << "(" << parseTop.propData.hifiProps << ")";
 
     qDebug() << "AFrameReader::processAelement EXITTED... ";
     qDebug() << "*************************************************";
@@ -1561,10 +1568,10 @@ AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(cons
         hifiProps.setOwningAvatarID(myNodeID);
     }
 
-    m_parseStack.push({ hifiProps.getName(), &hifiProps, QXmlStreamAttributes() });
+    m_parseStack.push({ hifiProps.getName(), QXmlStreamAttributes(), { m_propData.size()-1, &hifiProps }, ParseNode::NODE_TYPE_FUNCTIONAL });
     ParseNode &parseTop = m_parseStack.top();
     parseTop.attributes.swap(attributes);
-    qDebug() << "AFrameReader::processEntityAttributes - Pushing ParseNode: " << parseTop.name << "(" << parseTop.hifiProps << ")";
+    qDebug() << "AFrameReader::processEntityAttributes - Pushing ParseNode: " << parseTop.name << "(" << parseTop.propData.hifiProps << ")";
 
     // TODO_WL21698:  Remove Debug Dump
 #if AFRAME_DEBUG_NOTES >= 1
@@ -1588,7 +1595,7 @@ bool AFrameReader::isParseTop(const EntityItemProperties * const hifiProps) cons
         return false;
     }
 
-    return (hifiProps == &m_propData.back()) && (m_parseStack.top().hifiProps == hifiProps);
+    return (hifiProps == &m_propData.back()) && (m_parseStack.top().propData.hifiProps == hifiProps);
 }
 
 const AFrameReader::ParseNode * AFrameReader::getParentNode() const {
