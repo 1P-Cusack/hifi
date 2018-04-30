@@ -241,19 +241,20 @@ void processPosition(const AFrameReader::AFrameComponentProcessor &component, co
     EntityItemProperties &properties, const AFrameReader::ParseNode * const parentNode) {
     QList<float> values;
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_POSITION_VALUE);
-    parseVec3(elementAttributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_POSITION), QRegExp("\\s+"), defaultValue, values);
+    const QString &posComponentName = AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_POSITION);
+    parseVec3(elementAttributes, posComponentName, QRegExp("\\s+"), defaultValue, values);
     
     glm::vec3 entityPos(values.at(0), values.at(1), values.at(2));
-    if (parentNode != nullptr) {
-        QList<float> parentValues;
-        parseVec3(parentNode->attributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_POSITION)
-            , QRegExp("\\s+"), DEFAULT_POSITION_VALUE, parentValues);
-        glm::vec3 parentPos(parentValues.at(0), parentValues.at(1), parentValues.at(2));
-        qDebug() << "Adding ParentNode: " << parentNode->name << " Position: " << parentPos << " to EntityChildPos: " << entityPos;
-        entityPos = entityPos + parentPos;
-        qDebug() << "\t\tFinal EntityChildPos: " << entityPos;
+    if ((parentNode != nullptr) &&
+        (parentNode->type == AFrameReader::ParseNode::NODE_TYPE_REFERENCE) &&
+        !elementAttributes.hasAttribute(posComponentName)) {
+            QList<float> parentValues;
+            parseVec3(parentNode->attributes, posComponentName
+                , QRegExp("\\s+"), DEFAULT_POSITION_VALUE, parentValues);
+            glm::vec3 parentPos(parentValues.at(0), parentValues.at(1), parentValues.at(2));
+            entityPos = parentPos;
     }
-
+    
     properties.setPosition(entityPos);
 }
 
@@ -261,8 +262,21 @@ void processRotation(const AFrameReader::AFrameComponentProcessor &component, co
     EntityItemProperties &properties, const AFrameReader::ParseNode * const parentNode) {
     QList<float> values;
     const float defaultValue = (component.componentDefault.isValid() ? component.componentDefault.toFloat() : DEFAULT_ROTATION_VALUE);
-    parseVec3(elementAttributes, AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_ROTATION), QRegExp("\\s+"), defaultValue, values);
-    properties.setRotation(glm::vec3(values.at(0), values.at(1), values.at(2)));
+    const QString &rotComponentName = AFrameReader::getNameForComponent(AFrameReader::AFRAMECOMPONENT_ROTATION);
+    parseVec3(elementAttributes, rotComponentName, QRegExp("\\s+"), defaultValue, values);
+
+    glm::vec3 entityRot(values.at(0), values.at(1), values.at(2));
+    if ((parentNode != nullptr) &&
+        (parentNode->type == AFrameReader::ParseNode::NODE_TYPE_REFERENCE) &&
+        !elementAttributes.hasAttribute(rotComponentName)) {
+        QList<float> parentValues;
+        parseVec3(parentNode->attributes, rotComponentName
+            , QRegExp("\\s+"), DEFAULT_POSITION_VALUE, parentValues);
+        glm::vec3 parentRot(parentValues.at(0), parentValues.at(1), parentValues.at(2));
+        entityRot = parentRot;
+    }
+
+    properties.setRotation(entityRot);
 }
 
 void processSphereDimensions(const AFrameReader::AFrameComponentProcessor &component
@@ -961,6 +975,7 @@ bool AFrameReader::processScene() {
     qDebug() << "AFrameReader::processScene ENTERED... ";
 
     m_propData.clear();
+    m_propChildMap.clear();
     m_parseStack.clear();
     m_srcDictionary.clear();
     m_mixinDictionary.clear();
@@ -1063,11 +1078,11 @@ bool AFrameReader::processScene() {
 
             const ParseNode &parseTop = m_parseStack.top();
             if (parseTop.type == ParseNode::NODE_TYPE_REFERENCE) {
-                m_propData.removeAt(parseTop.propData.index);
+                m_propData.removeAt(parseTop.propInfo.index);
                 qDebug() << "AFrameReader::processScene - Removed ReferenceEntity: " << parseTop.name;
             }
             m_parseStack.pop();
-            qDebug() << "AFrameReader::processScene - Popped ParseNode: " << parseTop.name << "(" << parseTop.propData.hifiProps << ")";
+            qDebug() << "AFrameReader::processScene - Popped ParseNode: " << parseTop.name << "(" << parseTop.propInfo.hifiProps << ")";
             
         }// End_if( startElement/endElement )
     } // End_while( !atEnd )
@@ -1421,6 +1436,12 @@ AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QX
     }
 
     const ParseNode * const parentNode = getParentNode();
+    if ((parentNode != nullptr) && (parentNode->type != ParseNode::NODE_TYPE_REFERENCE)) {
+        m_propChildMap[parentNode->propInfo.hifiProps].push_back(&hifiProps);
+        qDebug() << "AFrameReader::processAFrameEntity - Noting ParseNode: " << parentNode->name
+            << "(" << parentNode->propInfo.hifiProps << ") has ChildNode:" << &hifiProps;
+    }
+
     for each (const QXmlStreamAttribute &nodeAttribute in entityAttributes) {
         const QString &nodeName = nodeAttribute.name().toString();
         const BaseEntityComponent baseComponentType = getBaseComponentForName(nodeName);
@@ -1457,7 +1478,7 @@ AFrameReader::EntityProcessExitReason AFrameReader::processAFrameEntity(const QX
     m_parseStack.push({ hifiProps.getName(), QXmlStreamAttributes(), {m_propData.size()-1, &hifiProps}, ParseNode::NODE_TYPE_REFERENCE });
     ParseNode &parseTop = m_parseStack.top();
     parseTop.attributes.swap(entityAttributes);
-    qDebug() << "AFrameReader::processAFrameEntity - Pushing ParseNode: " << parseTop.name << "(" << parseTop.propData.hifiProps << ")";
+    qDebug() << "AFrameReader::processAFrameEntity - Pushing ParseNode: " << parseTop.name << "(" << parseTop.propInfo.hifiProps << ")";
 
     qDebug() << "AFrameReader::processAelement EXITTED... ";
     qDebug() << "*************************************************";
@@ -1558,6 +1579,12 @@ AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(cons
     }
 
     const ParseNode * const parentNode = getParentNode();
+    if ((parentNode != nullptr) && (parentNode->type != ParseNode::NODE_TYPE_REFERENCE)) {
+        m_propChildMap[parentNode->propInfo.hifiProps].push_back(&hifiProps);
+        qDebug() << "AFrameReader::processEntityAttributes - Noting ParseNode: " << parentNode->name 
+            << "(" << parentNode->propInfo.hifiProps << ") has ChildNode:" << &hifiProps;
+    }
+
     for each (const AFrameComponentProcessor &componentProcessor in elementProcessor._componentProcessors) {
         componentProcessor.processFunc(componentProcessor, attributes, hifiProps, parentNode);
     }
@@ -1571,7 +1598,7 @@ AFrameReader::EntityProcessExitReason AFrameReader::processEntityAttributes(cons
     m_parseStack.push({ hifiProps.getName(), QXmlStreamAttributes(), { m_propData.size()-1, &hifiProps }, ParseNode::NODE_TYPE_FUNCTIONAL });
     ParseNode &parseTop = m_parseStack.top();
     parseTop.attributes.swap(attributes);
-    qDebug() << "AFrameReader::processEntityAttributes - Pushing ParseNode: " << parseTop.name << "(" << parseTop.propData.hifiProps << ")";
+    qDebug() << "AFrameReader::processEntityAttributes - Pushing ParseNode: " << parseTop.name << "(" << parseTop.propInfo.hifiProps << ")";
 
     // TODO_WL21698:  Remove Debug Dump
 #if AFRAME_DEBUG_NOTES >= 1
@@ -1595,7 +1622,7 @@ bool AFrameReader::isParseTop(const EntityItemProperties * const hifiProps) cons
         return false;
     }
 
-    return (hifiProps == &m_propData.back()) && (m_parseStack.top().propData.hifiProps == hifiProps);
+    return (hifiProps == &m_propData.back()) && (m_parseStack.top().propInfo.hifiProps == hifiProps);
 }
 
 const AFrameReader::ParseNode * AFrameReader::getParentNode() const {

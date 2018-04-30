@@ -149,18 +149,20 @@ public:
             NODE_TYPE_COUNT
         };
 
-        struct PropData {
+        struct PropInfo {
             int index;
             const EntityItemProperties * hifiProps;
         };
 
         QString name;
         QXmlStreamAttributes attributes;
-        PropData propData;
+        PropInfo propInfo;
         NodeType type { NODE_TYPE_COUNT };
     };
 
     typedef QList<EntityItemProperties> AFramePropList;
+    typedef QVector<const EntityItemProperties *> EntityItemPropertiesVec;
+    typedef QMap<const EntityItemProperties *, EntityItemPropertiesVec > AFramePropChildMap;
     typedef QStack<ParseNode> AFrameParseStack;
     typedef QHash<QString, QString> StringDictionary;
     typedef QHash<QString, SourceReference> SourceReferenceDictionary;
@@ -204,6 +206,7 @@ public:
     //! @note:  This list will be empty if no AFrame elements were successfully parsed
     //!         via a read call _or_ if read hasn't been called yet.
     const AFramePropList & getPropData() const { return m_propData; }
+    const AFramePropChildMap & getPropChildMap() const { return m_propChildMap; }
 
 
 protected:
@@ -245,6 +248,7 @@ protected:
 
     QXmlStreamReader m_reader;
     AFramePropList m_propData;
+    AFramePropChildMap m_propChildMap;
     AFrameParseStack m_parseStack;
     StringDictionary m_srcDictionary;
     MixinDictionary m_mixinDictionary;
