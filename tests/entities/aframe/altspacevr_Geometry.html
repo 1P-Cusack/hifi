@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" name="description" content="Geometry- A-Frame"/>
+    <title>Geometry</title>
+    <script src="../../../dist/aframe.js"></script>
+    <script src="../../../dist/aframe-altspace-component.js"></script>
+  </head>
+  <body>
+    <!--<a-scene stats altspace scale="0.2 0.2 0.2"> -->
+    <a-scene scale="0.2 0.2 0.2">
+      <!--<a-entity geometry="primitive: box" position="-4.5 0 -4"></a-entity> -->
+      <a-entity geometry="primitive: box" position="-4.5 0 -4" material="color: #f00; flatShading: true"></a-entity>
+      <a-entity geometry="primitive: circle" position="-1.5 0 -4"></a-entity>
+      <a-entity geometry="primitive: cylinder" position="1.5 0 -4"></a-entity>
+      <a-entity geometry="primitive: plane" position="4.5 0 -4"></a-entity>
+
+      <a-entity geometry="primitive: ring" position="-4.5 3 -4"></a-entity>
+      <a-entity geometry="primitive: sphere" position="-1.5 3 -4"></a-entity>
+      <a-entity geometry="primitive: torus" position="1.5 3 -4"></a-entity>
+      <a-entity geometry="primitive: torusKnot" position="4.5 3 -4"></a-entity>
+      <!-- light clause to test parting multi-property component 
+      <a-entity geometry="primitive: box" material="color: red" light="type: point; intensity: 2.0"/>-->
+    </a-scene>
+  </body>
+</html>

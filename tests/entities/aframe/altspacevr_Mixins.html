@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" name="description" content="Mixins"/>
+    <title>Mixins</title>
+    <script src="../../../dist/aframe.js"></script>
+    <script src="../../../dist/aframe-altspace-component.js"></script>
+  </head>
+  <body>
+    <!-- <a-scene stats altspace scale="0.1 0.1 0.1"> -->
+    <a-scene scale="0.1 0.1 0.1">
+      <a-assets>
+        <a-mixin id="cube" geometry="primitive: box" material="color: 255 0 0"
+                 rotation="0 45 0"></a-mixin>
+        <a-mixin id="sphere" geometry="primitive: sphere"
+                 material="color: blue"></a-mixin>
+        <a-mixin id="color_ball" material="color:rgb(0,0,255)"></a-mixin>
+      </a-assets>
+
+      <a-entity mixin="cube" position="-3.5 1 -4" material="color: yellow"></a-entity>
+      <a-entity mixin="cube" position="0 1 -4"></a-entity>
+      <a-entity mixin="cube" position="3.5 1 -4"></a-entity>
+      <!-- Added sphere usage to to show both mixins, as the original only utilized the cube prototype --> 
+      <a-entity mixin="cube sphere color_ball" position="0 3 -4"></a-entity>
+    </a-scene>
+  </body>
+</html>
