@@ -761,9 +761,19 @@ Windows.ScrollingWindow {
             MouseArea {
                 id: treeViewMousePad
 
+                property var wantDebug: false
+
                 propagateComposedEvents: true
                 anchors.fill: parent
                 acceptedButtons: Qt.RightButton
+
+                function printLog(msg) {
+                    if (!wantDebug) {
+                        return;
+                    }
+
+                    console.log( msg );
+                }
 
                 onClicked: {
                     if (treeView.selection.hasSelection && !HMD.active) {  // Popup only displays properly on desktop
@@ -782,30 +792,30 @@ Windows.ScrollingWindow {
                 }// End_OF( treeViewMousePad::onClicked )
 
                 onPressAndHold: {
-                    console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Triggered");
+                    printLog("AssetServer.qml - treeViewMousePad::onPressAndHold - Triggered");
                     if (drag.target == null) {
                         var index = treeView.indexAt(mouse.x, mouse.y);
                         if ( index !== treeView.currentIndex ) {
-                            console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Hold not triggered on current index.");
+                            printLog("AssetServer.qml - treeViewMousePad::onPressAndHold - Hold not triggered on current index.");
                             treeView.selection.setCurrentIndex(index, ItemSelectionModel.ClearAndSelect);
                         }
-                        console.log("AssetServer.qml - treeViewMousePad::onPressAndHold - Attempting to mark held selection.");
+                        printLog("AssetServer.qml - treeViewMousePad::onPressAndHold - Attempting to mark held selection.");
                         treeView.markIndexForDrag(index);
                     }
                 }// End_OF( treeViewMousePad::onPressAndHold )
 
                 onEntered: {
-                    console.log("AssetServer.qml - treeViewMousePad::onEntered");
+                    printLog("AssetServer.qml - treeViewMousePad::onEntered");
                 }// End_OF( treeViewMousePad::onEntered )
 
                 onExited: {
-                    console.log("AssetServer.qml - treeViewMousePad::onExited");
+                    printLog("AssetServer.qml - treeViewMousePad::onExited");
                 }// End_OF( treeViewMousePad::onExited )
 
                 onReleased: {
-                    console.log("AssetServer.qml - treeViewMousePad::onRelease - Triggered");
-                    console.log("AssetServer.qml - assetExportArea.state is: " + assetExportArea.state);
-                    console.log("AssetServer.qml - assetBrowseArea.state is: " + assetBrowseArea.state);
+                    printLog("AssetServer.qml - treeViewMousePad::onRelease - Triggered");
+                    printLog("AssetServer.qml - assetExportArea.state is: " + assetExportArea.state);
+                    printLog("AssetServer.qml - assetBrowseArea.state is: " + assetBrowseArea.state);
                     if (!mouse.wasHeld) {
                         //--EARLY EXIT--( no need to go farther )
                         return;
@@ -813,7 +823,7 @@ Windows.ScrollingWindow {
 
                     if ((drag.target !== null)) {
                         if (assetExportArea.state === "inExportArea") {
-                            console.log("AssetServer.qml - treeViewMousePad::onRelease - Attempting to trigger drop action.");
+                            printLog("AssetServer.qml - treeViewMousePad::onRelease - Attempting to trigger drop action.");
                             drag.target.Drag.drop();
                         }
 
