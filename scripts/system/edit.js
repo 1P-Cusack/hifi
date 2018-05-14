@@ -1623,7 +1623,12 @@ function onPromptTextChanged(prompt) {
 
 function invokeWindowImportEntityPrompt() {
     Window.browseChanged.connect(onFileOpenChanged);
-    Window.browseAsync("Select File to Import", "", "*.json *.html *.HTML *.htm *.HTM");
+    // @note(1):  Models and AFrame extensions labels as one filter set as
+    //        Models(*.json) AFrame(*.html *htm) isn't supported whether
+    //        seperated by space, comma, or comma and space.
+    // @note(2):  Upper and Lower case variants of files are included as the filter
+    //            doesn't appear to be case agnostic.
+    Window.browseAsync("Select File to Import", "", "ModelsAndAFrame(*.json *.JSON *.html *.HTML *.htm *.HTM)");
 }
 
 function handeMenuEvent(menuItem) {
